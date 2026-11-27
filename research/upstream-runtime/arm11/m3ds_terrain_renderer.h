@@ -31,6 +31,8 @@ int32_t m3ds_terrain_draw_weather_noise(int32_t index, float x, float y, float w
                                        float u, float v, float u2, float v2,
                                        int32_t tint, int32_t mix, int32_t blend_mode);
 void m3ds_terrain_finish_terrain(void);
+int32_t m3ds_terrain_light_begin(void);
+void m3ds_terrain_light_end(int32_t ambient);
 int32_t m3ds_terrain_end(void);
 void m3ds_terrain_minimap_upload(const uint8_t *pixels, int32_t width, int32_t height);
 void m3ds_terrain_minimap_draw(float x, float y, float size);

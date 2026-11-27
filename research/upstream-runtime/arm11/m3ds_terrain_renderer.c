@@ -86,6 +86,10 @@ static DVLB_s *quad_shader;
 static shaderProgram_s quad_program;
 static C3D_AttrInfo quad_attributes;
 static int quad_projection_uniform;
+enum { light_downscale = 4, light_texture_width = 128, light_texture_height = 64 };
+static C3D_Tex light_texture;
+static C3D_RenderTarget *light_target;
+static bool light_pass;
 #endif
 
 static bool romfs_ready;
@@ -234,6 +238,15 @@ int32_t m3ds_terrain_initialize(void) {
 }
 
 static void begin_world_scene(void) {
+#ifdef M3DS_WORLD_ATLAS
+    if (light_pass) {
+        C2D_SceneBegin(light_target);
+        C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
+        C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+        C2D_SetTintMode(C2D_TintMult);
+        return;
+    }
+#endif
     C2D_SceneBegin(target);
     // The top framebuffer stores screen X along its rotated Y axis.
     u32 x_margin = (u32)lroundf(fmaxf(0.0f, screen_left));
@@ -453,6 +466,17 @@ static int32_t draw_world_region(int page, int left, int top, int w, int h,
 #endif
 
 static void set_world_blend(int32_t mode) {
+#ifdef M3DS_WORLD_ATLAS
+    if (light_pass) {
+        if (world_blend != 3) {
+            C2D_Flush();
+            C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_MAX, GPU_SRC_ALPHA,
+                GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE);
+            world_blend = 3;
+        }
+        return;
+    }
+#endif
     if (world_blend == mode) return;
     C2D_Flush();
     GPU_BLENDFACTOR source = mode == 2 ? GPU_ONE : GPU_SRC_ALPHA;
@@ -824,6 +848,77 @@ static bool initialize_quad_shader(void) {
     return true;
 }
 
+int32_t m3ds_terrain_light_begin(void) {
+    if (!frame_open || light_pass || !initialize_quad_shader()) return 0;
+    if (!light_target) {
+        if (!C3D_TexInitVRAM(&light_texture, light_texture_width, light_texture_height, GPU_RGBA8)) return 0;
+        light_target = C3D_RenderTargetCreateFromTex(&light_texture, GPU_TEXFACE_2D, 0, -1);
+        if (!light_target) {
+            C3D_TexDelete(&light_texture);
+            return 0;
+        }
+        C3D_TexSetFilter(&light_texture, GPU_LINEAR, GPU_LINEAR);
+        C3D_TexSetWrap(&light_texture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+    }
+    C2D_Flush();
+    C3D_FrameSplit(0);
+    C3D_RenderTargetClear(light_target, C3D_CLEAR_COLOR, 0, 0);
+    scale /= light_downscale;
+    screen_left /= light_downscale;
+    screen_bottom /= light_downscale;
+    light_pass = true;
+    begin_world_scene();
+    set_world_mix(0, 0);
+    set_world_blend(0);
+    return 1;
+}
+
+void m3ds_terrain_light_end(int32_t ambient) {
+    if (!light_pass) return;
+    C2D_Flush();
+    C3D_FrameSplit(0);
+    light_pass = false;
+    scale *= light_downscale;
+    screen_left *= light_downscale;
+    screen_bottom *= light_downscale;
+    begin_world_scene();
+    set_world_blend(0);
+
+    C3D_Mtx projection;
+    Mtx_OrthoTilt(&projection, 0, 400, 240, 0, 1, -1, true);
+    C3D_BindProgram(&quad_program);
+    C3D_SetAttrInfo(&quad_attributes);
+    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, quad_projection_uniform, &projection);
+    C3D_TexBind(0, &light_texture);
+
+    // Pinned light.frag blends ambient RGB toward the sampled light color
+    // by light alpha, with overlay opacity equal to ambient alpha minus light alpha.
+    for (int i = 0; i < 6; i++) C3D_TexEnvInit(C3D_GetTexEnv(i));
+    C3D_TexEnv *env = C3D_GetTexEnv(0);
+    C3D_TexEnvColor(env, (uint32_t)ambient);
+    C3D_TexEnvSrc(env, C3D_RGB, GPU_TEXTURE0, GPU_CONSTANT, GPU_TEXTURE0);
+    C3D_TexEnvOpRgb(env, GPU_TEVOP_RGB_SRC_COLOR, GPU_TEVOP_RGB_SRC_COLOR, GPU_TEVOP_RGB_SRC_ALPHA);
+    C3D_TexEnvFunc(env, C3D_RGB, GPU_INTERPOLATE);
+    C3D_TexEnvSrc(env, C3D_Alpha, GPU_CONSTANT, GPU_TEXTURE0, GPU_TEXTURE0);
+    C3D_TexEnvFunc(env, C3D_Alpha, GPU_SUBTRACT);
+
+    const float u = 400.0f / (light_downscale * light_texture_width);
+    const float v = 1.0f - 240.0f / (light_downscale * light_texture_height);
+    const float vertices[][4] = {
+        {0, 0, 0, 1}, {0, 240, 0, v}, {400, 240, u, v},
+        {0, 0, 0, 1}, {400, 240, u, v}, {400, 0, u, 1}
+    };
+    C3D_ImmDrawBegin(GPU_TRIANGLES);
+    for (size_t i = 0; i < sizeof(vertices) / sizeof(vertices[0]); i++) {
+        C3D_ImmSendAttrib(vertices[i][0], vertices[i][1], 0.5f, 1.0f);
+        C3D_ImmSendAttrib(vertices[i][2], vertices[i][3], 0, 0);
+        C3D_ImmSendAttrib(1, 1, 1, 1);
+    }
+    C3D_ImmDrawEnd();
+    C2D_Prepare();
+    begin_world_scene();
+}
+
 static void draw_quad_piece(C3D_Tex *texture, const M3DS_QuadVertex *polygon, int count,
                             int x, int y, uint32_t mix, const C3D_Mtx *projection) {
     C2D_Flush();
@@ -900,6 +995,16 @@ static int read_quad_vertices(const float *vertices, int source_width, int sourc
 }
 #endif
 
+#ifndef M3DS_WORLD_ATLAS
+int32_t m3ds_terrain_light_begin(void) {
+    return 0;
+}
+
+void m3ds_terrain_light_end(int32_t ambient) {
+    (void)ambient;
+}
+#endif
+
 int32_t m3ds_terrain_draw_textured_quad(int32_t page, int32_t width, int32_t height,
                                       const float *vertices, int32_t offset, int32_t blend_mode) {
 #ifdef M3DS_WORLD_ATLAS
@@ -914,9 +1019,9 @@ int32_t m3ds_terrain_draw_textured_quad(int32_t page, int32_t width, int32_t hei
     if (status < 0) return 1;
     if (status == 0) return skip_unsupported_quad();
     if (!initialize_quad_shader()) return 0;
-    // The top-screen framebuffer stores the screen axes in reverse order.
     C3D_Mtx projection;
-    Mtx_OrthoTilt(&projection, 0, target->frameBuf.height, target->frameBuf.width, 0, 1, -1, true);
+    if (light_pass) Mtx_Ortho(&projection, 0, light_texture_width, light_texture_height, 0, 1, -1, true);
+    else Mtx_OrthoTilt(&projection, 0, target->frameBuf.height, target->frameBuf.width, 0, 1, -1, true);
     set_world_blend(blend_mode);
     set_world_mix(0, 0);
     static const int triangles[2][3] = {{0, 1, 2}, {2, 3, 0}};
@@ -1606,6 +1711,11 @@ void m3ds_terrain_fini(void) {
     m3ds_stock_text_close();
 #endif
 #ifdef M3DS_WORLD_ATLAS
+    if (light_target) {
+        C3D_RenderTargetDelete(light_target);
+        C3D_TexDelete(&light_texture);
+        light_target = NULL;
+    }
     if (quad_shader) {
         shaderProgramFree(&quad_program);
         DVLB_Free(quad_shader);
