@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import mindustry.Vars;
+import mindustry.graphics.Layer;
 import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
 import mindustry.core.World;
@@ -357,6 +358,7 @@ public final class UpstreamRenderedNetworkProbe {
         }
         Draw.sort(true);
         try {
+            Draw.draw(Layer.darkness, viewport::drawDarkness);
             for (var unit : Groups.unit) {
                 int x = World.toTile(unit.x()), y = World.toTile(unit.y());
                 if (x < viewport.left || x >= viewport.left + viewport.width()

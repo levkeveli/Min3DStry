@@ -42,6 +42,7 @@ public final class UpstreamTerrainDrawProbe {
     interface TerrainTarget {
         void begin(int left, int bottom, int width, int height);
         default void finishTerrain() {}
+        default void drawDarkness(byte[] alpha, int width, int height) {}
         void draw(int page, int left, int top, int width, int height,
                   float x, float y, float originX, float originY, float drawWidth, float drawHeight,
                   float rotation, int color, int mixColor, Blending blending);
@@ -164,6 +165,7 @@ public final class UpstreamTerrainDrawProbe {
         private int height = zoomHeight(1f);
         private float zoom = 1f;
         private final TerrainBatch batch;
+        private byte[] darkness;
         private final boolean drawStaticBlocks;
 
         Viewport(int left, int bottom, TerrainBatch batch, boolean drawStaticBlocks) {
@@ -212,6 +214,19 @@ public final class UpstreamTerrainDrawProbe {
             int high = building.block.size / 2;
             return tile.x + high >= left && tile.x - low < left + width
                 && tile.y + high >= bottom && tile.y - low < bottom + height;
+        }
+
+        void drawDarkness() {
+            if (batch.target == null) return;
+            int visibleWidth = Math.min(width, Vars.world.width() - left);
+            int visibleHeight = Math.min(height, Vars.world.height() - bottom);
+            if (visibleWidth <= 0 || visibleHeight <= 0) return;
+            int size = (visibleWidth + 2) * (visibleHeight + 2);
+            if (darkness == null || darkness.length < size) darkness = new byte[size];
+            if (UpstreamWorldDarkness.sample(Vars.world, Vars.state.rules, left, bottom,
+                    visibleWidth, visibleHeight, darkness)) {
+                batch.target.drawDarkness(darkness, visibleWidth, visibleHeight);
+            }
         }
 
         void draw(Runnable buildings) {

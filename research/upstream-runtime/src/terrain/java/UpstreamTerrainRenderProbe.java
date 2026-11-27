@@ -208,6 +208,13 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     }
 
     @Override
+    public void drawDarkness(byte[] alpha, int width, int height) {
+        if (NativeTerrain.drawDarkness(Address.ofData(alpha), width, height) == 0) {
+            throw new IllegalStateException("Unable to draw the stock world darkness texture");
+        }
+    }
+
+    @Override
     public void finishTerrain() {
         NativeTerrain.finishTerrain();
     }
@@ -431,6 +438,9 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         @Import(name = "m3ds_terrain_draw_world_label")
         static native int drawWorldLabel(Address label, Address characters, int count, float x, float y, int flags, float size,
                                          int horizontal, int vertical, int lines);
+
+        @Import(name = "m3ds_terrain_draw_darkness")
+        static native int drawDarkness(Address alpha, int width, int height);
 
         @Import(name = "m3ds_terrain_minimap_upload")
         static native void minimapUpload(Address pixels, int width, int height);

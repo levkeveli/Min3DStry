@@ -285,3 +285,14 @@ lead=1234, silicon=30`, batch fixture `move=1, wave=1, core=1`, and a separate
 
 Fixes from the batch: pause-overlay placement/label stripping (#535) and
 notification-above-item-list draw order (#542).
+
+### World darkness
+
+The playable world samples the pinned v160.8 `World.getDarkness` values
+and the restricted-area clear rectangle from `BlockRenderer`. The
+Citro2D texture uses `darkness.frag`'s black output and inverted red
+channel as alpha, with a one-texel margin for linear interpolation.
+Both session modes submit the texture at the original darkness layer,
+after buildings and before the higher world layers and the HUD. The
+JVM fixture covers a natural wall, a map edge, contraction and restored
+bounds. The ARM11 pixel comparison is pending.
