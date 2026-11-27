@@ -90,7 +90,7 @@
       "domain": "Extraction & Logistics",
       "name": "Mechanical & Pneumatic Drills (Automated Extraction)",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 26,
       "evidence": [
@@ -98,7 +98,7 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "Original mechanical and pneumatic drill extraction and item output run on ARM11. The full floor and wall extractor roster passes stock JVM draw checks, with four representative stock buildings verified offline and live on both Azahar profiles."
+      "notes": "Original mechanical and pneumatic drill extraction and item output run on ARM11. The full floor and wall extractor roster passes stock JVM draw checks (UPSTREAM_STOCK_EXTRACTOR_DRAW tested=10 active=10), with four representative stock buildings verified offline and live on both Azahar profiles. Host factory probe: UPSTREAM_DRILL updates=720 wave=1 copper=203 arrivals=464=202,626=203. Software complete."
     },
     {
       "id": "conveyors-sorting-storage",
