@@ -824,14 +824,12 @@ def load_constructor_cargo_fixture(server_log, server):
         'return "STOCK_EREKIR_CARGO " + state.join(" "); })()\n'
     )
     server.stdin.flush()
-    result = wait_for(server_log, server, r"STOCK_EREKIR_CARGO ", 10)
     recipes = (
         "tungsten-wall-large@600,176 beryllium-wall-large@624,176 carbide-wall-large@672,176 "
         "reinforced-surge-wall-large@696,176 reinforced-liquid-container@648,240 "
         "reinforced-container@672,240 beam-node@696,240"
     )
-    if f"STOCK_EREKIR_CARGO {recipes}" not in result:
-        raise AssertionError("Original Constructor recipes or fixture coordinates changed")
+    wait_for(server_log, server, re.escape(f"STOCK_EREKIR_CARGO {recipes}") + r"\b", 10)
 
 
 def verify_constructor_cargo(screenshot):
