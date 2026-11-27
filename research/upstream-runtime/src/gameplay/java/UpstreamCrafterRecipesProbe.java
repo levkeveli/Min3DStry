@@ -49,8 +49,20 @@ public final class UpstreamCrafterRecipesProbe {
         sepOut -= sepStart;
         if (sepOut <= 0) throw new AssertionError("Stock Separator produced no items");
 
+        var kiln = (GenericCrafterBuild)place(Blocks.kiln, baseX + 4, baseY + 4, team);
+        place(Blocks.powerSource, baseX + 3, baseY + 4, team);
+        int kilnStart = kiln.items.get(Items.metaglass);
+        for (int tick = 0; tick < 400; tick++) {
+            kiln.items.set(Items.lead, kiln.block.itemCapacity);
+            kiln.items.set(Items.sand, kiln.block.itemCapacity);
+            step(app);
+        }
+        int metaglass = kiln.items.get(Items.metaglass) - kilnStart;
+        if (metaglass <= 0) throw new AssertionError("Stock Kiln produced no metaglass");
+
         System.out.println("UPSTREAM_CRAFTER_RECIPES graphitePress=" + graphite
-            + " siliconSmelter=" + silicon + " separator=" + sepOut + " craftTime=stock");
+            + " siliconSmelter=" + silicon + " separator=" + sepOut + " kiln=" + metaglass
+            + " craftTime=stock");
     }
 
     private static mindustry.gen.Building place(mindustry.world.Block block, int x, int y, mindustry.game.Team team) {
