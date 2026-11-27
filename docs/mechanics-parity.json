@@ -29,7 +29,7 @@
       "domain": "World, Content & Saves",
       "name": ".msav Map Loading & Embedded Startup Loader",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 28,
       "evidence": [
@@ -37,14 +37,14 @@
         "research/upstream-runtime/src/content/java/UpstreamWorldLoadProbe.java",
         "research/upstream-runtime/src/world/java/UpstreamSaveRowsProbe.java"
       ],
-      "notes": "Upstream SaveIO/MapIO streaming decode runs on ARM11 and is linked as the default min3dstry.3dsx startup path."
+      "notes": "Upstream SaveIO/MapIO streaming decode runs on ARM11 and is linked as the default min3dstry.3dsx startup path. The host round trip reloads the stock v13 save with an identical world fingerprint (2e7b9f883994de6c) and tile hash (e35397041df8e5fe); software complete."
     },
     {
       "id": "msav-save-roundtrip",
       "domain": "World, Content & Saves",
       "name": ".msav Save Writing, Reload & Persistence",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline"],
       "issue": 28,
       "evidence": [
@@ -52,14 +52,14 @@
         "research/upstream-runtime/src/world/java/UpstreamWorldRoundTripProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java"
       ],
-      "notes": "SaveIO write and reload across Azahar Boot 1 -> Boot 2 persists tiles, core inventory, buildings, GameStats, and Rules."
+      "notes": "SaveIO write and reload across Azahar Boot 1 -> Boot 2 persists tiles, core inventory, buildings, GameStats, and Rules. Host: UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok with identical building, tile and state hashes; software complete."
     },
     {
       "id": "terrain-world-atlas",
       "domain": "World, Content & Saves",
       "name": "Full 4-Page World Atlas, Terrain & Layered Building Draw",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 25,
       "evidence": [
@@ -68,7 +68,7 @@
         "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
         "research/upstream-runtime/src/network-render/java/port/render/UpstreamFluidAtlas.java"
       ],
-      "notes": "All 4 upstream atlas pages (5,200 regions), animated fluids, cracks, and BlockRenderer static/dynamic layers render on ARM11."
+      "notes": "All 4 upstream atlas pages (5,200 regions), animated fluids, cracks, and BlockRenderer static/dynamic layers render on ARM11. Host: UPSTREAM_STOCK_ATLAS pages=4 regions=5200; software complete."
     },
     {
       "id": "player-ore-mining",
@@ -137,7 +137,7 @@
       "domain": "Extraction & Logistics",
       "name": "Power Grids, Generators, Nodes & Batteries",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["probe", "offline", "multiplayer"],
       "issue": 39,
       "evidence": [
@@ -148,7 +148,7 @@
         "research/upstream-runtime/src/network-render/java/UpstreamBuildingPowerHud.java",
         "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java"
       ],
-      "notes": "PowerGraph and GraphUpdater ticks are verified in the ARM11 probe. The live draw set includes the complete stock PowerBlock family (generators, reactors, batteries, diodes and lights), and the host reference now asserts every member explicitly; PowerNode beams remain covered. The stock selected-building power bar is wired in the offline and live clients from Block.setBars, with host checks for dry, partial, buffered and supplied-idle states; it is included in the New 3DS acceptance run."
+      "notes": "PowerGraph and GraphUpdater ticks are verified in the ARM11 probe. The live draw set includes the complete stock PowerBlock family (generators, reactors, batteries, diodes and lights), and the host reference asserts every member explicitly (UPSTREAM_STOCK_LIVE_POWER_DRAW tested=26); PowerNode beams remain covered. The stock selected-building power bar is wired in the offline and live clients from Block.setBars, with host checks for dry, partial, buffered and supplied-idle states. Software complete."
     },
     {
       "id": "liquids-pumps-conduits",
