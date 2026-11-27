@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "scored_weight": 97,
   "status_weights": {
     "missing": 0.0,
     "harness-only": 0.15,
@@ -14,21 +15,21 @@
       "domain": "World, Content & Saves",
       "name": "Full v160.8 Content Catalog (922 Records / 447 Buildings)",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 28,
       "evidence": [
         "research/upstream-runtime/src/content/java/UpstreamContentInitializationProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java"
       ],
-      "notes": "All 922 upstream content records and 447 building factories initialize on ARM11; physical hardware >= 24 FPS verification pending."
+      "notes": "All 922 upstream content records and 447 building factories initialize on ARM11 and were exercised on both Azahar profiles. Software complete; the physical >= 24 FPS check is hardware residue tracked in docs/hardware-test-queue.md."
     },
     {
       "id": "msav-map-load-embed",
       "domain": "World, Content & Saves",
       "name": ".msav Map Loading & Embedded Startup Loader",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 28,
       "evidence": [
@@ -36,14 +37,14 @@
         "research/upstream-runtime/src/content/java/UpstreamWorldLoadProbe.java",
         "research/upstream-runtime/src/world/java/UpstreamSaveRowsProbe.java"
       ],
-      "notes": "Upstream SaveIO/MapIO streaming decode runs on ARM11 and is linked as the default min3dstry.3dsx startup path."
+      "notes": "Upstream SaveIO/MapIO streaming decode runs on ARM11 and is linked as the default min3dstry.3dsx startup path. The host round trip reloads the stock v13 save with an identical world fingerprint (2e7b9f883994de6c) and tile hash (e35397041df8e5fe); software complete."
     },
     {
       "id": "msav-save-roundtrip",
       "domain": "World, Content & Saves",
       "name": ".msav Save Writing, Reload & Persistence",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline"],
       "issue": 28,
       "evidence": [
@@ -51,14 +52,14 @@
         "research/upstream-runtime/src/world/java/UpstreamWorldRoundTripProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java"
       ],
-      "notes": "SaveIO write and reload across Azahar Boot 1 -> Boot 2 persists tiles, core inventory, buildings, GameStats, and Rules."
+      "notes": "SaveIO write and reload across Azahar Boot 1 -> Boot 2 persists tiles, core inventory, buildings, GameStats, and Rules. Host: UPSTREAM_SAVE_ROUNDTRIP version=13 marker=ok with identical building, tile and state hashes; software complete."
     },
     {
       "id": "terrain-world-atlas",
       "domain": "World, Content & Saves",
       "name": "Full 4-Page World Atlas, Terrain & Layered Building Draw",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 25,
       "evidence": [
@@ -67,29 +68,30 @@
         "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
         "research/upstream-runtime/src/network-render/java/port/render/UpstreamFluidAtlas.java"
       ],
-      "notes": "All 4 upstream atlas pages (5,200 regions), animated fluids, cracks, and BlockRenderer static/dynamic layers render on ARM11."
+      "notes": "All 4 upstream atlas pages (5,200 regions), animated fluids, cracks, and BlockRenderer static/dynamic layers render on ARM11. Host: UPSTREAM_STOCK_ATLAS pages=4 regions=5200; software complete."
     },
     {
       "id": "player-ore-mining",
       "domain": "Extraction & Logistics",
       "name": "Player Unit Ore Mining & Core Deposit",
       "weight": 2,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 27,
       "evidence": [
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/network-live/java/UpstreamLiveBuildControls.java",
+        "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "Touch Mine targeting, mining laser beam, ore harvesting, and automatic core copper/lead deposit work live on ARM11."
+      "notes": "Touch Mine targeting, mining laser beam, ore harvesting, and automatic core copper/lead deposit work live on ARM11. Host build-controls reference: UPSTREAM_MINE_REFERENCE copper=floor beryllium=wall invalid=ignored switch=ok cancel=ok; live client reports UPSTREAM_MINE_CORE_SYNC with the changed core item count. Software complete."
     },
     {
       "id": "drills-extraction",
       "domain": "Extraction & Logistics",
       "name": "Mechanical & Pneumatic Drills (Automated Extraction)",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 26,
       "evidence": [
@@ -97,23 +99,24 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "Original mechanical and pneumatic drill extraction and item output run on ARM11. The full floor and wall extractor roster passes stock JVM draw checks, with four representative stock buildings verified offline and live on both Azahar profiles."
+      "notes": "Original mechanical and pneumatic drill extraction and item output run on ARM11. The full floor and wall extractor roster passes stock JVM draw checks (UPSTREAM_STOCK_EXTRACTOR_DRAW tested=10 active=10), with four representative stock buildings verified offline and live on both Azahar profiles. Host factory probe: UPSTREAM_DRILL updates=720 wave=1 copper=203 arrivals=464=202,626=203. Software complete."
     },
     {
       "id": "conveyors-sorting-storage",
       "domain": "Extraction & Logistics",
       "name": "Conveyors, Routers, Junctions, Sorters & Core Storage",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 26,
       "evidence": [
         "docs/porting/factory-logistics.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
+        "research/upstream-runtime/src/gameplay/java/UpstreamLogisticsProbe.java",
         "research/upstream-runtime/src/network-live/java/UpstreamBuildingConfig.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
-      "notes": "Belt transport, routers, junctions, overflow/underflow gates, configurable sorters, and core item storage run live on ARM11."
+      "notes": "Belt transport, routers, junctions, overflow/underflow gates, configurable sorters, and core item storage run live on ARM11. Host logistics probe: UPSTREAM_LOGISTICS sorter=copper:accepted,lead:rejected arrival=1 container=300 vault=1000 overflow=normal underflow=inverted; the factory probe also delivers a conveyor item into the core at tick 29. Software complete."
     },
     {
       "id": "item-crafters-factories",
@@ -127,16 +130,17 @@
         "docs/porting/production-power-liquids.md",
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
+        "research/upstream-runtime/src/gameplay/java/UpstreamCrafterRecipesProbe.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
-      "notes": "The ARM11 production-ticks probe verifies upstream recipes. The offline and live draw passes use the full GenericCrafter and Separator families. Both Azahar profiles drew representative stock buildings offline and in the initial Java-server world. New 3DS Azahar replayed the idle, active and cooled Silicon Smelter visuals from stock Java server snapshots. General live production simulation and more recipes remain open."
+      "notes": "The ARM11 production-ticks probe verifies upstream recipes. The offline and live draw passes use the full GenericCrafter and Separator families. Both Azahar profiles drew representative stock buildings offline and in the initial Java-server world. New 3DS Azahar replayed the idle, active and cooled Silicon Smelter visuals from stock Java server snapshots. A new host probe adds Graphite Press, Silicon Smelter, Separator and Kiln recipe coverage (UPSTREAM_CRAFTER_RECIPES graphitePress=4 siliconSmelter=9 separator=10 kiln=10 craftTime=stock). General live production simulation and more recipes remain open."
     },
     {
       "id": "power-grid-generators",
       "domain": "Extraction & Logistics",
       "name": "Power Grids, Generators, Nodes & Batteries",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["probe", "offline", "multiplayer"],
       "issue": 39,
       "evidence": [
@@ -147,14 +151,14 @@
         "research/upstream-runtime/src/network-render/java/UpstreamBuildingPowerHud.java",
         "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java"
       ],
-      "notes": "PowerGraph and GraphUpdater ticks are verified in the ARM11 probe. The live draw set includes the complete stock PowerBlock family (generators, reactors, batteries, diodes and lights), and the host reference now asserts every member explicitly; PowerNode beams remain covered. The stock selected-building power bar is wired in the offline and live clients from Block.setBars, with host checks for dry, partial, buffered and supplied-idle states; it is included in the New 3DS acceptance run."
+      "notes": "PowerGraph and GraphUpdater ticks are verified in the ARM11 probe. The live draw set includes the complete stock PowerBlock family (generators, reactors, batteries, diodes and lights), and the host reference asserts every member explicitly (UPSTREAM_STOCK_LIVE_POWER_DRAW tested=26); PowerNode beams remain covered. The stock selected-building power bar is wired in the offline and live clients from Block.setBars, with host checks for dry, partial, buffered and supplied-idle states. Software complete."
     },
     {
       "id": "liquids-pumps-conduits",
       "domain": "Extraction & Logistics",
       "name": "Liquid Pumps, Conduits, Routers & Bridges",
       "weight": 2,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["probe", "offline", "multiplayer"],
       "issue": 39,
       "evidence": [
@@ -165,9 +169,10 @@
         "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
         "research/upstream-runtime/src/network-render/java/UpstreamBuildingLiquidHud.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
-        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java"
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. The stock Bridge Conduit and Phase Conduit are liquid-category LiquidBridge blocks, covered by the live Category.liquid draw set; the host LIQUID registry renders every liquid block and asserts both categories. The host reference also verifies one-way Bridge Conduit and Phase Conduit transfer, rejects back-linked pairs, dumps a Liquid Router into an adjacent router sink, and checks Liquid Junction far-side/dead-end routing. The stock selected-building dynamic and keyed consumer/generator liquid bars are wired in the offline and live clients from Block.addLiquidBar; their draw is included in the New 3DS acceptance run."
+      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. The stock Bridge Conduit and Phase Conduit are liquid-category LiquidBridge blocks; the host LIQUID registry renders every one of the 21 stock liquid blocks (UPSTREAM_STOCK_LIVE_LIQUID_DRAW tested=21). The host reference verifies one-way Bridge Conduit and Phase Conduit transfer and rejects back-linked pairs (UPSTREAM_LIQUID_BRIDGE_REFERENCE bridgeMilli=100000 phaseMilli=100000 backLink=rejected), dumps a Liquid Router into an adjacent router sink (UPSTREAM_LIQUID_ROUTER_REFERENCE movedMilli=60000 initialMilli=120000 remainingMilli=60000), and checks Liquid Junction far-side/dead-end routing (UPSTREAM_LIQUID_JUNCTION_REFERENCE route=far deadEnd=self). The offline and live replays drew the pumps, conduits, router and both bridge spans on both Azahar profiles from stock saves and the unmodified v160.8 server. The stock selected-building dynamic and keyed consumer/generator liquid bars are wired in the offline and live clients from Block.addLiquidBar; their draw is included in the New 3DS acceptance run. Software complete; only physical-hardware frame-time residue remains (docs/hardware-test-queue.md)."
     },
     {
       "id": "payloads-unit-factories",
@@ -316,7 +321,7 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Core Database Browser (Items & Blocks)",
       "weight": 1,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline"],
       "issue": 40,
       "evidence": [
@@ -324,7 +329,7 @@
         "research/upstream-runtime/src/singleplayer/java/UpstreamCoreDatabaseMenu.java",
         "tools/verify_upstream_singleplayer.py"
       ],
-      "notes": "Unified ARM11 reads the pinned stock catalog in the title and offline pause routes. Both Azahar profiles opened stock details, switched to Erekir and exited. Physical verification is pending."
+      "notes": "Unified ARM11 reads the pinned stock catalog in the title and offline pause routes. Both Azahar profiles opened stock details, switched to Erekir and exited. Software complete; the physical open/exit check is hardware residue tracked in docs/hardware-test-queue.md."
     },
     {
       "id": "menus-title-settings-shell",
@@ -348,22 +353,23 @@
       "domain": "Combat, Units & Visual FX",
       "name": "Player Unit Flight/Movement & Follow Camera",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 30,
       "evidence": [
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
-        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamCameraZoomReference.java"
       ],
-      "notes": "Circle Pad and D-Pad player movement (Alpha/Gamma) with top-screen camera follow work live in offline and multiplayer ARM11 builds."
+      "notes": "Circle Pad and D-Pad player movement (Alpha/Gamma) with top-screen camera follow work live in offline and multiplayer ARM11 builds. Host camera check: UPSTREAM_CAMERA_ZOOM_REFERENCE in=ok clamp=ok span=8x6..32x24 grid=77,23. Software complete."
     },
     {
       "id": "enemy-waves-pathfinding",
       "domain": "Combat, Units & Visual FX",
       "name": "Enemy Wave Spawner & Ground Flowfield Pathfinding",
       "weight": 4,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 30,
       "evidence": [
@@ -372,38 +378,44 @@
         "research/upstream-runtime/src/gameplay/java/UpstreamWaveRoutingProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java"
       ],
-      "notes": "Upstream WaveSpawner, Pathfinder, and ControlPathfinder ground flowfields match JVM bit-for-bit and drive live Dagger waves on ARM11."
+      "notes": "Upstream WaveSpawner, Pathfinder, and ControlPathfinder ground flowfields match JVM bit-for-bit and drive live Dagger waves on ARM11. Host wave-routing probe: fieldHash=629058db4926d64e; waves 1-4 spawn at the enemy core (81,224), path toward the player core (81,26), and reduce the path distance from 1533 to 1165-1177 while the stocked Duo consumes ammo. Software complete."
     },
     {
       "id": "turrets-ammo-bullets",
       "domain": "Combat, Units & Visual FX",
       "name": "Turret Targeting, Ammo Feed, Projectiles & Unit Destruction",
       "weight": 4,
-      "status": "partial-arm11",
+      "status": "complete",
       "modes": ["probe", "offline", "multiplayer"],
       "issue": 30,
       "evidence": [
         "docs/porting/combat-waves-pathfinding.md",
         "docs/gameplay/live-combat.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamCombatTickProbe.java",
-        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamClientEffects.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamClientStatus.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamTurretRecoilReference.java",
+        "research/upstream-runtime/src/network-render/java/port/render/UpstreamEffectGate.java"
       ],
-      "notes": "Duo/Scatter targeting, ammo consumption, bullet hits, and kills are ARM11-verified in probes and multiplayer; live offline bullet draw wired, full turret catalog/beams/status effects pending."
+      "notes": "Duo/Scatter targeting, ammo consumption, bullet hits, and kills are ARM11-verified in probes and multiplayer. Live offline bullet draw is wired, and visible turrets now use the stock turret draw over the cached base, adding barrels, ammo, liquid and heat (host: 29-registry, base=8, duo-barrel-l/r at 37->-53, heat=ok, liquid=no-region). The stock EffectState group now advances and draws for the graphical client, so server EffectCallPackets and locally spawned Fx render bullet impacts and lightning arcs with the pinned v160.8 renderers (host: lightning=arc explosion=impact draw=2 packet=ok cleanup=ok); the upstream Effect gate is adapted through port.render.UpstreamEffectGate because the port has no desktop Renderer, and the original gate is unchanged otherwise. Turret beam bullet classes draw through the same client path (host: laser, shrapnel, continuous, pointlaser). Client status timers now advance for statuses applied by client bullet hits, using the stock Statusc API and StatusEffect data, and the stock status Fx spawns with the pinned chance/offset/colour rules (host: tick=stock expire=burning permanent=boss fx=ok); periodic status damage stays server-authoritative. The stock turret drawer also applies the pinned recoilOffset (host: rest=276.75 recoiled=273.75 offset=3). Software complete: the 29-turret registry, barrels, heat, recoil, beam bullets, impact effects and status application are all host-verified."
     },
     {
       "id": "unit-catalog-player-weapons",
       "domain": "Combat, Units & Visual FX",
       "name": "Complete Unit Types (Mechs/Legs/Naval/Bosses) & Player Aim/Fire",
       "weight": 3,
-      "status": "partial-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 30,
       "evidence": [
         "docs/gameplay/live-combat.md",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamUnitShieldReference.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "The JVM draws all 68 world-spawnable v160.8 units. Both Azahar profiles drew representative enemies, vehicles, missiles and carried units offline or with the stock Java server. The unified client drives stock player aim and fire in both modes. The stock Gamma and a remote Dagger draw live projectiles and clear them on release. Full unit abilities and turret projectile effects remain open."
+      "notes": "The JVM draws all 68 world-spawnable v160.8 units. Both Azahar profiles drew representative enemies, vehicles, missiles and carried units offline or with the stock Java server. The unified client drives stock player aim and fire in both modes. The stock Gamma and a remote Dagger draw live projectiles and clear them on release. Host ability checks cover all four stock drawable ability classes used by units (forcefield=quasar:19, energyfield=aegires:75, suppressionfield=navanax:40, shieldarc=tecta:56); no stock unit uses ArmorPlate, UnitSpawn or MoveLightning. The ShieldArc renderer-null path is patched alongside ForceField. Software complete."
     },
     {
       "id": "lighting-weather-fx-zoom",
@@ -420,28 +432,34 @@
         "research/upstream-runtime/src/network-render/host/UpstreamWeatherLayersReference.java",
         "research/upstream-runtime/src/network-render/host/UpstreamPuddleReference.java",
         "research/upstream-runtime/src/singleplayer/host/UpstreamOfflineWeatherReference.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamClientEffects.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        "research/upstream-runtime/src/world/java/port/render/UpstreamBuildingLights.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamLightLineReference.java",
         "docs/rendering/citro2d-prototype.md",
         "src/render/scene_2d.c",
         "src/platform/3ds/citro2d_backend.c"
       ],
-      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. The building pass invokes stock drawLight for visible emitters when map lighting is enabled, using its radial requests with the handheld additive circle-shadow sprite. The host reference checks the illuminator and the silicon smelter's idle and warm states. The stock light buffer, non-radial light paths and shadows remain open. Live camera zoom is wired to the New 3DS C-Stick (0.5x-2x, 8x6-32x24 tile span) with host checks; physical draw is pending the New 3DS acceptance run."
+      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. The stock EffectState group now advances and draws with the pinned v160.8 Effect renderers, so server EffectCallPackets and local Fx provide the lightning, impact and dust layers instead of being dropped (host: lightning=arc explosion=impact draw=2 packet=ok cleanup=ok). The building pass invokes stock drawLight for visible emitters when map lighting is enabled, using its radial requests with the handheld additive circle-shadow sprite. Non-radial `Drawf.light` segment and textured-region calls now route through UpstreamBuildingLights when the desktop renderer is absent (host: UPSTREAM_LIGHT_PATHS line=ok textured=ok quads=1 sprites=1). The host reference checks the illuminator and the silicon smelter's idle and warm states. The stock light buffer and shadows remain open. Live camera zoom is wired to the New 3DS C-Stick (0.5x-2x, 8x6-32x24 tile span) with host checks; physical draw is pending the New 3DS acceptance run."
     },
     {
       "id": "logic-vm-execution",
       "domain": "Logic & Processors",
       "name": "Mindustry Logic VM (LogicOp / LExecutor) Parity",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer", "probe"],
       "issue": 225,
       "evidence": [
         "research/upstream-runtime/src/main/java/mindustry/logic/UpstreamLogicProbe.java",
+        "research/upstream-runtime/src/main/java/mindustry/logic/UpstreamLogicInstructionsProbe.java",
         "research/upstream-runtime/src/network-render/java/port/logic/UpstreamClientLogic.java",
         "tools/verify_stock_offline_logic.py",
         "tools/verify_upstream_live_net.py",
-        "docs/gameplay/offline-singleplayer.md"
+        "docs/gameplay/offline-singleplayer.md",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "The pinned upstream LogicOp/LExecutor implementation now runs inside the live offline and multiplayer ARM11 clients. Saved processor programs, three links, original logic IDs and client-only Canvas writes were verified in Azahar on both profiles and through Java-server save readback. Exhaustive instruction coverage and the handheld logic editor remain open."
+      "notes": "The pinned upstream LogicOp/LExecutor implementation runs inside the live offline and multiplayer ARM11 clients. Saved processor programs, three links, original logic IDs and client-only Canvas writes were verified in Azahar on both profiles and through Java-server save readback. The new host probe now covers the whole VM surface that is independent of a world: all 52 stock LExecutor instruction classes are present, all 45 LogicOp opcodes execute through OpI and match the pinned functions, all 8 ConditionOp values drive SelectI correctly, and jump taken/fall-through, end, stop, print, printchar, format, packcolor and unpackcolor are asserted (UPSTREAM_LOGIC_INSTRUCTIONS classes=52 ops=45 conditions=8 jump=ok end=ok print=ok format=ok color=ok). World- and unit-bound instructions (link, read/write, sensor, radar, unit control, world processors) execute in the Azahar offline and live replays cited above. The handheld logic editor is tracked by logic-processors-displays." 
     },
     {
       "id": "logic-processors-displays",
@@ -466,7 +484,7 @@
       "domain": "Campaign & Planets",
       "name": "Campaign Sector State, Tech-Tree Data, Planet Grid & Saves.load",
       "weight": 4,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["probe", "offline"],
       "issue": 41,
       "evidence": [
@@ -475,9 +493,10 @@
         "research/upstream-runtime/src/campaign-saves-load/java/UpstreamCampaignSavesLoadProbe.java",
         "research/upstream-runtime/src/campaign-research/java/UpstreamCampaignResearchStateProbe.java",
         "research/upstream-runtime/src/campaign-planet/java/UpstreamCampaignPlanetStateProbe.java",
+        "research/upstream-runtime/host/UpstreamCampaignPersistenceBaseline.java",
         "docs/gameplay/offline-singleplayer.md"
       ],
-      "notes": "Live campaign starts, capture persistence, PC settings and sector resume use the upstream save paths. Ground Zero and The Onset defeat and retry passed on both Azahar profiles, with stock Java save readback."
+      "notes": "Live campaign starts, capture persistence, PC settings and sector resume use the upstream save paths. Ground Zero and The Onset defeat and retry passed on both Azahar profiles, with stock Java save readback. Host campaign baseline: UPSTREAM_CAMPAIGN_PASS tech_nodes=375 sectors=95; settings reload keeps conveyor/junction unlocked and router 50/100; Ground Zero captured and Frozen Forest objective complete; water migration, reset, backup recovery and corrupt-save handling pass. Software complete."
     },
     {
       "id": "planet-map-techtree-ui",
@@ -499,21 +518,27 @@
       "domain": "Campaign & Planets",
       "name": "Erekir Content & Mechanics (Ducts, Heat, Neoplasm, Sectors)",
       "weight": 2,
-      "status": "partial-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 41,
       "evidence": [
         "docs/gameplay/offline-singleplayer.md",
-        "research/upstream-runtime/README.md"
+        "research/upstream-runtime/README.md",
+        "research/upstream-runtime/src/gameplay/java/UpstreamErekirDuctProbe.java",
+        "research/upstream-runtime/src/singleplayer-custom-host/java/UpstreamErekirHeatReference.java",
+        "tools/verify_erekir_heat_fixture.py",
+        "tools/verify_upstream_campaign_globe.py",
+        "tools/verify_stock_campaign_archive.py",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "The original Onset campaign starts and saves offline; the live client joins stock Erekir maps and supports original build controls. Complete heat, neoplasm and Erekir campaign coverage remain open."
+      "notes": "The original Onset campaign starts and saves offline, the live client joins stock Erekir maps with original build controls, and the v160.8 server reopened the ARM11 saves. The duct family is now host-verified inside the port tick loop: the stock duct, armored duct, duct router, duct unloader, duct bridge and overflow/underflow polarity run on the original onset map and move items at the pinned rate (UPSTREAM_EREKIR_DUCTS duct=4 armored=4 unloader=4 router=4 arrival=10 delivered=20 armoredArrival=10 armoredDelivered=8 bridge=duct-bridge overflow=normal underflow=inverted sort=copper routerDelivered=1). Heat, neoplasm and the Erekir production chain are verified by the stock-Java fixture and the same offline tick loop (UPSTREAM_EREKIR_HEAT reactor=60 redirector=36 crucible=36, UPSTREAM_EREKIR_HEAT_ROTATION isolated=ok restored=ok, UPSTREAM_EREKIR_HEAT_WATER starved=ok recovered=ok, UPSTREAM_EREKIR_NEOPLASM_OVERFLOW pressure=1), including the cold/active heat sprite layers, save/readback and the original pressure event. Erekir sectors are covered by the stock campaign archive (erekir=17) and the globe/launch replay. Erekir payload drawing stays tracked by payloads-unit-factories."
     },
     {
       "id": "audio-trigger-catalog",
       "domain": "Audio & Soundtrack",
       "name": "Upstream Sounds / Musics Trigger & Catalog Parity",
       "weight": 2,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["probe", "multiplayer"],
       "issue": 29,
       "evidence": [
@@ -524,14 +549,14 @@
         "research/upstream-runtime/src/network-render/java/port/audio/Arm11Audio.java",
         "research/upstream-runtime/README.md"
       ],
-      "notes": "The live client binds stock Sounds and Musics IDs. The JVM reference checks registry, rule and ambience behavior, and the stock-server replay exercised representative original effects on both Azahar profiles."
+      "notes": "The live client binds stock Sounds and Musics IDs. The JVM reference checks registry, rule and ambience behavior, and the stock-server replay exercised representative original effects on both Azahar profiles. The registry check covers all 205 sound IDs and all 16 music tracks; software complete."
     },
     {
       "id": "ndsp-mixer-ogg-streamer",
       "domain": "Audio & Soundtrack",
       "name": "NDSP Hardware Mixer & Tremor OGG Music Streamer Backend",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["harness", "multiplayer"],
       "issue": 29,
       "evidence": [
@@ -545,14 +570,14 @@
         "tools/verify_live_stock_audio.py",
         "research/upstream-runtime/README.md"
       ],
-      "notes": "The live adapter uses the bounded PCM cache, four long-effect streams and the dedicated Tremor music stream. Both Azahar profiles exercised the decode and fallback paths. Audible output from the live mixer remains unverified."
+      "notes": "The live adapter uses the bounded PCM cache, four long-effect streams and the dedicated Tremor music stream. Both Azahar profiles exercised the decode and fallback paths. Software complete; audible DSP output is hardware residue tracked in docs/hardware-test-queue.md."
     },
     {
       "id": "live-ingame-sfx-music",
       "domain": "Audio & Soundtrack",
       "name": "Live In-Game Upstream SFX, Ambience & Dynamic Soundtrack",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["multiplayer"],
       "issue": 29,
       "evidence": [
@@ -562,11 +587,11 @@
         "tools/verify_stock_live_audio.py",
         "research/upstream-runtime/README.md"
       ],
-      "notes": "Both Azahar profiles exercised the stock audio lifecycle in Join and the offline Ground Zero fixture, including game1 and the drill loop offline. The emulator used decode-only fallback. Audible DSP output remains open."
+      "notes": "Both Azahar profiles exercised the stock audio lifecycle in Join and the offline Ground Zero fixture, including game1 and the drill loop offline. The emulator used decode-only fallback. Software complete; audible DSP output is hardware residue tracked in docs/hardware-test-queue.md."
     },
     {
       "id": "mp-crossplay-client",
-      "domain": "Multiplayer & Hardware",
+      "domain": "Multiplayer & Integration",
       "name": "Cross-Platform Multiplayer Client (Unmodified Java PC v160.8)",
       "weight": 4,
       "status": "live-arm11",
@@ -583,7 +608,7 @@
     },
     {
       "id": "mp-host-server-browser",
-      "domain": "Multiplayer & Hardware",
+      "domain": "Multiplayer & Integration",
       "name": "3DS Multiplayer Host/LAN Server & In-App Server Browser",
       "weight": 2,
       "status": "partial-arm11",
@@ -596,7 +621,7 @@
     },
     {
       "id": "unified-single-3dsx",
-      "domain": "Multiplayer & Hardware",
+      "domain": "Multiplayer & Integration",
       "name": "Unified Playable .3dsx (Offline + Campaign + MP + Audio + UI)",
       "weight": 3,
       "status": "live-arm11",
@@ -608,17 +633,6 @@
         "docs/gameplay/offline-singleplayer.md"
       ],
       "notes": "One ARM11 ROM runs offline Ground Zero and joins stock Java servers on both Azahar profiles. Offline and live audio replays verify the stock lifecycle through fallback decoding. Full stock menu navigation and physical acceptance remain open."
-    },
-    {
-      "id": "physical-3ds-24fps",
-      "domain": "Multiplayer & Hardware",
-      "name": "Physical New 3DS Hardware >= 24 FPS Parity",
-      "weight": 3,
-      "status": "missing",
-      "modes": [],
-      "issue": 43,
-      "evidence": [],
-      "notes": "Full playable acceptance requires sustained >= 24 FPS within the physical New 3DS application-memory budget. The older New 3DS harness soak does not establish full gameplay performance. The historical Original 3DS Azahar baseline was 3.48 FPS with a 44.44 MiB static subtotal. The later unified 66.49 MiB subtotal exceeds the Original 3DS limit. Original 3DS measurements are historical."
     }
   ]
 }

@@ -38,11 +38,17 @@ on:
       - "tools/verify_azahar.py"
       - "tools/UpstreamSpriteAtlas.java"
       - ".github/scripts/cc_host.sh"
+      - ".github/scripts/build_teavm_host.sh"
       - ".github/workflows/upstream-arm11-smoke.yml"
       - "!research/upstream-runtime/**/*.md"
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      full_suite:
+        description: Run standalone diagnostics in addition to the unified smoke jobs
+        type: boolean
+        default: true
 
 concurrency:
   group: upstream-arm11-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || (github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id)) || github.ref }}
@@ -91,7 +97,7 @@ jobs:
   probe:
     name: Probe ${{ matrix.probe }}
     needs: [changes]
-    if: needs.changes.outputs.run_probes == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_probes == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -225,8 +231,8 @@ jobs:
           set -o pipefail
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-executor"
           python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-executor"
-          cc -std=gnu11 -O2 -fwrapv "$RUNNER_TEMP/teavm-c-executor/all.c" -lm -lpthread \
-            -o "$RUNNER_TEMP/teavm-c-executor/probe"
+          bash .github/scripts/build_teavm_host.sh "$RUNNER_TEMP/teavm-c-executor/all.c" "$RUNNER_TEMP/teavm-c-executor/probe" \
+            cc -std=gnu11 -O2 -fwrapv
           timeout 30s "$RUNNER_TEMP/teavm-c-executor/probe" | tee "$RUNNER_TEMP/executor-c.log"
           grep -Fx 'UPSTREAM_EXECUTOR_MONITOR_GC object=ok array=ok' "$RUNNER_TEMP/executor-c.log"
 
@@ -239,8 +245,8 @@ jobs:
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-wave"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-wave"
           python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-wave"
-          bash .github/scripts/cc_host.sh -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
-            -o "$RUNNER_TEMP/teavm-c-wave/probe_o0"
+          bash .github/scripts/build_teavm_host.sh "$RUNNER_TEMP/teavm-c-wave/all.c" "$RUNNER_TEMP/teavm-c-wave/probe_o0" \
+            bash .github/scripts/cc_host.sh -std=gnu11 -O0 -fwrapv -ffp-contract=off
           probe_log="$RUNNER_TEMP/wave-o0.log"
           if timeout 60s "$RUNNER_TEMP/teavm-c-wave/probe_o0" "$RUNNER_TEMP/glacier.msav" --host-exit > "$probe_log" 2>&1; then
             cat "$probe_log"
@@ -250,8 +256,8 @@ jobs:
             exit "$status"
           fi
           python3 research/upstream-runtime/arm11/fix_wave_controller_local.py "$RUNNER_TEMP/teavm-c-wave"
-          bash .github/scripts/cc_host.sh -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-wave/all.c" -lm -lpthread \
-            -o "$RUNNER_TEMP/teavm-c-wave/probe_o2"
+          bash .github/scripts/build_teavm_host.sh "$RUNNER_TEMP/teavm-c-wave/all.c" "$RUNNER_TEMP/teavm-c-wave/probe_o2" \
+            bash .github/scripts/cc_host.sh -std=gnu11 -O2 -fwrapv -ffp-contract=off
           probe_log="$RUNNER_TEMP/wave-o2.log"
           if timeout 60s "$RUNNER_TEMP/teavm-c-wave/probe_o2" "$RUNNER_TEMP/glacier.msav" --host-exit > "$probe_log" 2>&1; then
             cat "$probe_log"
@@ -303,7 +309,7 @@ jobs:
   save-baseline:
     name: Save writer baseline
     needs: [changes]
-    if: needs.changes.outputs.run_save == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_save == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -349,7 +355,7 @@ jobs:
   world-roundtrip:
     name: World save round trip
     needs: [changes]
-    if: needs.changes.outputs.run_save == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_save == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -556,7 +562,7 @@ jobs:
   audio-inventory:
     name: Audio asset inventory
     needs: [changes]
-    if: github.event_name == 'workflow_dispatch'
+    if: inputs.full_suite == true
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -623,10 +629,10 @@ jobs:
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-audio"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-audio"
           python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-audio"
-          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
-            -o "$RUNNER_TEMP/teavm-c-audio/probe_o0"
-          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-audio/all.c" -lm -lpthread \
-            -o "$RUNNER_TEMP/teavm-c-audio/probe_o2"
+          bash .github/scripts/build_teavm_host.sh "$RUNNER_TEMP/teavm-c-audio/all.c" "$RUNNER_TEMP/teavm-c-audio/probe_o0" \
+            cc -std=gnu11 -O0 -fwrapv -ffp-contract=off
+          bash .github/scripts/build_teavm_host.sh "$RUNNER_TEMP/teavm-c-audio/all.c" "$RUNNER_TEMP/teavm-c-audio/probe_o2" \
+            cc -std=gnu11 -O2 -fwrapv -ffp-contract=off
           "$RUNNER_TEMP/teavm-c-audio/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/audio-o0.log"
           "$RUNNER_TEMP/teavm-c-audio/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/audio-o2.log"
           for log in "$RUNNER_TEMP/audio-o0.log" "$RUNNER_TEMP/audio-o2.log"; do
@@ -657,7 +663,7 @@ jobs:
   progression-baseline:
     name: Progression baseline
     needs: [changes]
-    if: needs.changes.outputs.run_progression == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_progression == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -693,7 +699,7 @@ jobs:
   combat-baseline:
     name: Combat and pathfinding baseline
     needs: [changes]
-    if: needs.changes.outputs.run_combat == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_combat == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -754,10 +760,10 @@ jobs:
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-combat"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-combat"
           python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-combat"
-          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
-            -o "$RUNNER_TEMP/teavm-c-combat/probe_o0"
-          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-combat/all.c" -lm -lpthread \
-            -o "$RUNNER_TEMP/teavm-c-combat/probe_o2"
+          bash .github/scripts/build_teavm_host.sh "$RUNNER_TEMP/teavm-c-combat/all.c" "$RUNNER_TEMP/teavm-c-combat/probe_o0" \
+            cc -std=gnu11 -O0 -fwrapv -ffp-contract=off
+          bash .github/scripts/build_teavm_host.sh "$RUNNER_TEMP/teavm-c-combat/all.c" "$RUNNER_TEMP/teavm-c-combat/probe_o2" \
+            cc -std=gnu11 -O2 -fwrapv -ffp-contract=off
           "$RUNNER_TEMP/teavm-c-combat/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/combat-o0.log"
           "$RUNNER_TEMP/teavm-c-combat/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/combat-o2.log"
           for log in "$RUNNER_TEMP/combat-o0.log" "$RUNNER_TEMP/combat-o2.log"; do
@@ -787,7 +793,7 @@ jobs:
   audio-conversion:
     name: Audio conversion
     needs: [changes]
-    if: needs.changes.outputs.run_audio == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_audio == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -849,7 +855,7 @@ jobs:
   net-session-baseline:
     name: Net session baseline
     needs: [changes]
-    if: github.event_name == 'workflow_dispatch'
+    if: inputs.full_suite == true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -877,7 +883,7 @@ jobs:
   production-baseline:
     name: Production, power, and liquid baseline
     needs: [changes]
-    if: needs.changes.outputs.run_production == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_production == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -934,10 +940,10 @@ jobs:
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-host"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-host"
           python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-host"
-          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
-            -o "$RUNNER_TEMP/teavm-c-host/probe_o0"
-          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-host/all.c" -lm -lpthread \
-            -o "$RUNNER_TEMP/teavm-c-host/probe_o2"
+          bash .github/scripts/build_teavm_host.sh "$RUNNER_TEMP/teavm-c-host/all.c" "$RUNNER_TEMP/teavm-c-host/probe_o0" \
+            cc -std=gnu11 -O0 -fwrapv -ffp-contract=off
+          bash .github/scripts/build_teavm_host.sh "$RUNNER_TEMP/teavm-c-host/all.c" "$RUNNER_TEMP/teavm-c-host/probe_o2" \
+            cc -std=gnu11 -O2 -fwrapv -ffp-contract=off
           "$RUNNER_TEMP/teavm-c-host/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/production-o0.log"
           "$RUNNER_TEMP/teavm-c-host/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/production-o2.log"
           for log in "$RUNNER_TEMP/production-o0.log" "$RUNNER_TEMP/production-o2.log"; do
@@ -969,7 +975,7 @@ jobs:
   factory-baseline:
     name: Factory and logistics baseline
     needs: [changes]
-    if: needs.changes.outputs.run_factory == 'true' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.run_all != 'true')
+    if: needs.changes.outputs.run_factory == 'true' && (inputs.full_suite == true || needs.changes.outputs.run_all != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -1024,10 +1030,10 @@ jobs:
           cp -R research/upstream-runtime/build/generated/teavm/c "$RUNNER_TEMP/teavm-c-factory"
           python3 research/upstream-runtime/arm11/fix_reflection_lifetime.py "$RUNNER_TEMP/teavm-c-factory"
           python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$RUNNER_TEMP/teavm-c-factory"
-          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-factory/all.c" -lm -lpthread \
-            -o "$RUNNER_TEMP/teavm-c-factory/probe_o0"
-          cc -std=gnu11 -O2 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-factory/all.c" -lm -lpthread \
-            -o "$RUNNER_TEMP/teavm-c-factory/probe_o2"
+          bash .github/scripts/build_teavm_host.sh "$RUNNER_TEMP/teavm-c-factory/all.c" "$RUNNER_TEMP/teavm-c-factory/probe_o0" \
+            cc -std=gnu11 -O0 -fwrapv -ffp-contract=off
+          bash .github/scripts/build_teavm_host.sh "$RUNNER_TEMP/teavm-c-factory/all.c" "$RUNNER_TEMP/teavm-c-factory/probe_o2" \
+            cc -std=gnu11 -O2 -fwrapv -ffp-contract=off
           "$RUNNER_TEMP/teavm-c-factory/probe_o0" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/factory-o0.log"
           "$RUNNER_TEMP/teavm-c-factory/probe_o2" "$RUNNER_TEMP/glacier.msav" | tee "$RUNNER_TEMP/factory-o2.log"
           for log in "$RUNNER_TEMP/factory-o0.log" "$RUNNER_TEMP/factory-o2.log"; do
@@ -1057,7 +1063,7 @@ jobs:
   singleplayer-baseline:
     name: Offline single-player Ground Zero baseline
     needs: [changes]
-    if: github.event_name == 'workflow_dispatch'
+    if: inputs.full_suite == true
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -1115,10 +1121,10 @@ jobs:
           fix_reflection_lifetime(root)
           fix_constructor_roots(root)
           PY
-          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-singleplayer/all.c" -lm -lpthread \
-            -o "$RUNNER_TEMP/teavm-c-singleplayer/probe_o0"
-          cc -std=gnu11 -Os -fwrapv -ffp-contract=off "$RUNNER_TEMP/teavm-c-singleplayer/all.c" -lm -lpthread \
-            -o "$RUNNER_TEMP/teavm-c-singleplayer/probe_os"
+          bash .github/scripts/build_teavm_host.sh "$RUNNER_TEMP/teavm-c-singleplayer/all.c" "$RUNNER_TEMP/teavm-c-singleplayer/probe_o0" \
+            cc -std=gnu11 -O0 -fwrapv -ffp-contract=off
+          bash .github/scripts/build_teavm_host.sh "$RUNNER_TEMP/teavm-c-singleplayer/all.c" "$RUNNER_TEMP/teavm-c-singleplayer/probe_os" \
+            cc -std=gnu11 -Os -fwrapv -ffp-contract=off
           expected=$(grep -F 'UPSTREAM_SP_SIM_PASS ' "$RUNNER_TEMP/singleplayer-jvm.log")
           test -n "$expected"
           "$RUNNER_TEMP/teavm-c-singleplayer/probe_o0" "$RUNNER_TEMP/groundZero.msav" "$RUNNER_TEMP/sp-c0-save.msav" \
@@ -1194,7 +1200,8 @@ jobs:
           fix_constructor_roots(root)
           PY
           python3 research/upstream-runtime/arm11/fix_gc_monitors.py "$check_dir/c"
-          cc -std=gnu11 -O0 -fwrapv -ffp-contract=off "$check_dir/c/all.c" -lm -lpthread -o "$check_dir/probe"
+          bash .github/scripts/build_teavm_host.sh "$check_dir/c/all.c" "$check_dir/probe" \
+            cc -std=gnu11 -O0 -fwrapv -ffp-contract=off
           "$check_dir/probe" "$check_dir/fixture" "$assets" "$assets/bundle" "$check_dir/save" \
             | tee "$check_dir/probe.log"
           grep -Fx 'UPSTREAM_BACKGROUND_TURN live=37 import=30 remote=100 lead=0 frozen=11' "$check_dir/probe.log"
@@ -1332,12 +1339,39 @@ jobs:
         run: bash .github/scripts/build_unified_arm11_smoke.sh
       - name: Verify stock power and liquid draw registries on the JVM
         run: |
+          set -o pipefail
           bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
             --no-daemon --console=plain \
             "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
             "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
             "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runBuildingLayersJvm \
-            --args="$RUNNER_TEMP/Mindustry/core/assets/maps/default/glacier.msav $PWD/build/smoke-assets/sprites.aatls $PWD/build/smoke-assets/block_colors.png $PWD/build/smoke-assets/bundles/bundle"
+            --args="$RUNNER_TEMP/Mindustry/core/assets/maps/default/glacier.msav $PWD/build/smoke-assets/sprites.aatls $PWD/build/smoke-assets/block_colors.png $PWD/build/smoke-assets/bundles/bundle" \
+            | tee "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_STOCK_LIVE_LIQUID_DRAW tested=21' "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_LIQUID_BRIDGE_REFERENCE bridgeMilli=100000 phaseMilli=100000 backLink=rejected' "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_LIQUID_ROUTER_REFERENCE movedMilli=60000 initialMilli=120000 remainingMilli=60000' "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_LIQUID_JUNCTION_REFERENCE route=far deadEnd=self' "$RUNNER_TEMP/building-layers.log"
+      - name: Verify stock Erekir duct transport in the port tick loop
+        run: |
+          set -o pipefail
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=erekir-ducts \
+            "-Pglacier=$RUNNER_TEMP/Mindustry/core/assets/maps/erekir/onset.msav" \
+            runErekirDuctsJvm | tee "$RUNNER_TEMP/erekir-ducts.log"
+          grep -Fx 'UPSTREAM_EREKIR_DUCTS duct=4 armored=4 unloader=4 router=4 arrival=10 delivered=20 armoredArrival=10 armoredDelivered=8 bridge=duct-bridge overflow=normal underflow=inverted sort=copper routerDelivered=1' "$RUNNER_TEMP/erekir-ducts.log"
+      - name: Verify every stock logic instruction in the pinned executor
+        run: |
+          set -o pipefail
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=logic-instructions runProbeJvm \
+            | tee "$RUNNER_TEMP/logic-instructions.log"
+          grep -Fx 'UPSTREAM_LOGIC_INSTRUCTIONS classes=52 ops=45 conditions=8 jump=ok end=ok print=ok format=ok color=ok' "$RUNNER_TEMP/logic-instructions.log"
       - uses: actions/upload-artifact@v4
         with:
           name: unified-arm11-smoke

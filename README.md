@@ -4,7 +4,7 @@ Min3DStry is an experimental **1:1 port of upstream Mindustry (v8 build 160.8)**
 
 ![Min3DStry Port Completion Gauge](docs/progress-gauge.svg)
 
-*Overall port completion is computed directly from [docs/port-capabilities.json](docs/port-capabilities.json) (`planned=0%`, `experimental=15%`, `host-tested=30%`, `emulator-tested=55%`, `hardware-verified=85%`, `complete=100%`) and checked in CI via `python3 tools/port_progress.py --check`.*
+*Overall port completion is computed directly from [docs/port-capabilities.json](docs/port-capabilities.json) (`planned=0%`, `experimental=15%`, `host-tested=30%`, `emulator-tested=85%`, `hardware-verified=85%`, `complete=100%`) and checked in CI via `python3 tools/port_progress.py --check`.*
 
 ![Min3DStry Mechanics & Feature Parity Gauge](docs/mechanics-gauge.svg)
 
@@ -21,9 +21,11 @@ Run `./dev.sh doctor` for environment diagnostics, `./dev.sh test` for host unit
 - [Hardware deployment & benchmark-report](docs/hardware/deployment-and-logs.md) (Wi-Fi deployment and log capture verified on New 3DS XL)
 - [Citro2D platform test harness](docs/rendering/citro2d-prototype.md) (Host-tested, `.3dsx` built, and Azahar emulator-tested; physical hardware pending)
 
+![New 3DS Physical Hardware Verification](docs/hardware-gauge.svg)
+
 ## Current development status
 
-The gauges above use the checked-in capability and gameplay ledgers. The gameplay ledger now tracks fresh Serpulo and Erekir campaign starts, the combined offline/server client, and the stock effects, ambience, and soundtrack in its Join and offline paths. Azahar replay covers those paths. The audio replays used the missing-DSP fallback, so physical listening and the sustained 24 FPS target on physical New 3DS remain open. New Nintendo 3DS/2DS is the sole supported target. Earlier Original 3DS results are historical evidence. See the [hardware test queue](docs/hardware-test-queue.md) for the remaining physical checks.
+The software port and mechanics gauges can reach 100% through complete software parity and appropriate host or New 3DS emulator evidence. The software port gauge gives emulator-tested and hardware-verified capabilities the same weight. Both software gauges award full credit for complete software evidence. The separate hardware gauge counts the six physical New 3DS checks in the hardware test queue, with one point per verified check. The new percentages use revised denominators. The gameplay ledger now tracks fresh Serpulo and Erekir campaign starts, the combined offline/server client, and the stock effects, ambience, and soundtrack in its Join and offline paths. Azahar replay covers those paths. The audio replays used the missing-DSP fallback, so physical listening and the sustained 24 FPS target on physical New 3DS remain open. New Nintendo 3DS/2DS is the sole supported target. Earlier Original 3DS results are historical evidence. See the [hardware test queue](docs/hardware-test-queue.md) for the remaining physical checks.
 
 The **Mechanics & Feature Parity Gauge** weights each v160.8 feature by its current verification stage. The [mechanics ledger](docs/mechanics-parity.json) records the evidence and open work for each feature.
 

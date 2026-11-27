@@ -100,12 +100,13 @@ jobs:
           docker run --rm "${docker_numa_args[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp \
             -v "$PWD:/work" -v "$RUNNER_TEMP/Mindustry:/upstream/Mindustry:ro" \
             -w /work "$image" bash -lc '
+            set -e -o pipefail
             source /opt/devkitpro/3dsvars.sh
             python3 --version
             tex3ds --version
             bash tools/build_teavm_loader.sh \
               research/upstream-runtime/build/generated/teavm/c build/teavm-loader
-            make NO_AUDIO_ROMFS=1 PYTHON=python3 TEAVM_LOADER_DIR=/work/build/teavm-loader \
+            make -j"$(nproc)" NO_AUDIO_ROMFS=1 PYTHON=python3 TEAVM_LOADER_DIR=/work/build/teavm-loader \
               UPSTREAM_MINDUSTRY=/upstream/Mindustry all
             test -s build/min3dstry.3dsx
             test -s build/min3dstry.smdh
@@ -119,7 +120,7 @@ jobs:
             # The strong embedded-loader symbol must win over the weak stub,
             # otherwise the app silently falls back to the native parser.
             arm-none-eabi-nm build/min3dstry.elf \
-              | grep -q " T m3ds_teavm_world_load$"
+              | grep " T m3ds_teavm_world_load$"
             # Build (do not run) the loader smoke variants so the test file is
             # compiled by CI instead of only being referenced by a path filter.
             arm-none-eabi-gcc -std=gnu11 -g -Os -fwrapv -D__3DS__ \
