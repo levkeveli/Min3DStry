@@ -300,8 +300,9 @@ with a restricted area, checks that three exterior pixels become black
 while the interior stays unchanged, and checks that reopening the area
 restores all six samples before continuing through the controller checks.
 
-The [New 3DS replay at `23fd7b6`](https://github.com/levkeveli/Min3DStry/actions/runs/46045340411/artifacts/15222918310)
-passed the three darkness comparisons. A wider, fully loaded German HUD
-covered two samples in the subsequent stock core-atlas check. The atlas
-check now samples exposed stock core texels that matched in both the
-darkness replay and the earlier LAN replay.
+The exact `d21ad52` New 3DS run passed the unified build, offline campaign
+replays, and stock Java multiplayer replay. The archived frames show the
+original Glacier view, the darkened exterior with the active core still
+visible, and the original view after the server restores the map area.
+The checks also sampled two exposed stock Core Nucleus texels through the
+localized HUD. [Screenshots and logs](https://github.com/levkeveli/Min3DStry/actions/runs/46051348802/artifacts/15225957206)
