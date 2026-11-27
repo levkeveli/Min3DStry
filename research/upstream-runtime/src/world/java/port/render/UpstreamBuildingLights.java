@@ -16,8 +16,6 @@ public final class UpstreamBuildingLights {
     private static final Seq<Runnable> shapes = new Seq<>();
     private static final Seq<CircleLight> circles = new Seq<>();
     private static int circleCount;
-    private static boolean drawing;
-    private static boolean frame;
     private static boolean collecting;
 
     private static final class CircleLight {
@@ -27,18 +25,13 @@ public final class UpstreamBuildingLights {
     private UpstreamBuildingLights() {
     }
 
-    public static void begin() {
-        drawing = true;
-    }
-
-    public static void end() {
-        drawing = false;
-    }
-
     public static void beginFrame(boolean enabled) {
         clearFrame();
-        frame = true;
         collecting = enabled;
+    }
+
+    public static boolean isCollecting() {
+        return collecting;
     }
 
     public static void defer(Runnable draw) {
@@ -66,14 +59,12 @@ public final class UpstreamBuildingLights {
         shapes.clear();
         circleCount = 0;
         collecting = false;
-        frame = false;
     }
 
     public static void line(float x, float y, float x2, float y2, float stroke, Color tint, float alpha) {
-        if (alpha <= 0f || stroke <= 0f || (!collecting && (frame || !drawing))) return;
+        if (!collecting || alpha <= 0f || stroke <= 0f) return;
         float packed = Color.toFloatBits(tint.r, tint.g, tint.b, alpha);
-        if (collecting) shapes.add(() -> drawLine(x, y, x2, y2, stroke, packed));
-        else drawLine(x, y, x2, y2, stroke, packed);
+        shapes.add(() -> drawLine(x, y, x2, y2, stroke, packed));
     }
 
     private static void drawLine(float x, float y, float x2, float y2, float stroke, float packed) {
@@ -117,11 +108,10 @@ public final class UpstreamBuildingLights {
     }
 
     public static void textured(float x, float y, TextureRegion region, float rotation, Color color, float opacity) {
-        if (region == null || !region.found() || opacity <= 0f || (!collecting && (frame || !drawing))) return;
+        if (!collecting || region == null || !region.found() || opacity <= 0f) return;
         float packed = color.toFloatBits();
         float xscl = Draw.xscl, yscl = Draw.yscl;
-        if (collecting) shapes.add(() -> drawTexture(x, y, region, rotation, packed, opacity, xscl, yscl));
-        else drawTexture(x, y, region, rotation, packed, opacity, xscl, yscl);
+        shapes.add(() -> drawTexture(x, y, region, rotation, packed, opacity, xscl, yscl));
     }
 
     private static void drawTexture(float x, float y, TextureRegion region, float rotation,
@@ -138,18 +128,13 @@ public final class UpstreamBuildingLights {
     }
 
     public static void radial(float x, float y, float radius, Color color, float opacity) {
-        if (radius <= 0f || opacity <= 0f || (!collecting && (frame || !drawing))) return;
-        float packed = Color.toFloatBits(color.r, color.g, color.b, opacity);
-        if (collecting) {
-            if (circleCount == circles.size) circles.add(new CircleLight());
-            CircleLight light = circles.get(circleCount++);
-            light.x = x;
-            light.y = y;
-            light.radius = radius;
-            light.color = packed;
-        } else {
-            drawCircle(x, y, radius, packed);
-        }
+        if (!collecting || radius <= 0f || opacity <= 0f) return;
+        if (circleCount == circles.size) circles.add(new CircleLight());
+        CircleLight light = circles.get(circleCount++);
+        light.x = x;
+        light.y = y;
+        light.radius = radius;
+        light.color = Color.toFloatBits(color.r, color.g, color.b, opacity);
     }
 
     private static void drawCircle(float x, float y, float radius, float packed) {

@@ -225,7 +225,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
     }
 
     void drawWorldLights() {
-        if (!worldLightsEnabled()) return;
+        if (!UpstreamBuildingLights.isCollecting()) return;
         if (NativeTerrain.lightBegin() == 0) throw new IllegalStateException("Unable to create the world light buffer");
         Color ambient = Vars.state.rules.ambientLight;
         int packed = (int)(ambient.r * 255) | (int)(ambient.g * 255) << 8

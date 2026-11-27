@@ -16,6 +16,8 @@ import port.render.UpstreamFluidAtlas;
 public final class UpstreamLightLineReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private int quads;
     private int sprites;
+    private float previousSpriteX;
+    private float lastSpriteX;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3) {
@@ -33,21 +35,20 @@ public final class UpstreamLightLineReference implements UpstreamTerrainDrawProb
         var region = Core.atlas.find("circle-shadow");
         if (!region.found()) throw new AssertionError("Missing stock light texture");
 
-        UpstreamBuildingLights.begin();
+        UpstreamBuildingLights.beginFrame(true);
         try {
+            Drawf.light(628f, 216f, 4f, Color.blue, 1f);
             Drawf.light(600f, 200f, 620f, 208f, 4f, Color.red, 1f);
-            if (target.quads + target.sprites != 3) {
-                throw new AssertionError("Stock line light requires a center strip and both end caps");
-            }
-            int spritesBefore = target.sprites;
             Drawf.light(610f, 210f, region, 0f, Color.green, 1f);
-            if (target.sprites != spritesBefore + 1) {
-                throw new AssertionError("Stock textured light drew no sprite");
+            if (target.quads + target.sprites != 0) throw new AssertionError("Light escaped the frame queue");
+            UpstreamBuildingLights.flushFrame();
+            if (target.quads + target.sprites != 5 || target.previousSpriteX != 610 || target.lastSpriteX != 628) {
+                throw new AssertionError("Stock light order must be segment, textured light, then radial light");
             }
         } finally {
-            UpstreamBuildingLights.end();
+            UpstreamBuildingLights.clearFrame();
         }
-        System.out.println("UPSTREAM_LIGHT_PATHS line=ok textured=ok quads=" + target.quads
+        System.out.println("UPSTREAM_LIGHT_PATHS line=ok textured=ok radial=ok quads=" + target.quads
             + " sprites=" + target.sprites);
     }
 
@@ -66,6 +67,8 @@ public final class UpstreamLightLineReference implements UpstreamTerrainDrawProb
     public void draw(int page, int left, int top, int width, int height, float x, float y,
                      float originX, float originY, float drawWidth, float drawHeight,
                      float rotation, int color, int mixColor, arc.graphics.Blending blending) {
+        previousSpriteX = lastSpriteX;
+        lastSpriteX = x;
         sprites++;
     }
 }

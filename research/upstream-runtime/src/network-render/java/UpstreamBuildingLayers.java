@@ -133,15 +133,9 @@ final class UpstreamBuildingLayers {
     }
 
     private static void drawLights(Seq<Building> visible) {
-        var rules = Vars.state.rules;
-        if (!Vars.enableLight || !rules.lighting || rules.ambientLight.a <= 0.0001f) return;
-        UpstreamBuildingLights.begin();
-        try {
-            for (var build : visible) {
-                if (build.block.emitLight || build.block.drawLiquidLight) build.drawLight();
-            }
-        } finally {
-            UpstreamBuildingLights.end();
+        if (!UpstreamBuildingLights.isCollecting()) return;
+        for (var build : visible) {
+            if (build.block.emitLight || build.block.drawLiquidLight) build.drawLight();
         }
     }
 
