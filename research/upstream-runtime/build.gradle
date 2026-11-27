@@ -393,6 +393,11 @@ if (usesTerrainRenderer) {
 }
 if (usesSimulation) {
     sourceSets.main.java.srcDir('src/gameplay/java')
+    tasks.register('runLogisticsJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamLogisticsProbe'
+    }
 }
 if (probe == 'world-stream') {
     sourceSets.main.java.srcDir('src/world-stream/java')

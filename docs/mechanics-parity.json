@@ -106,16 +106,17 @@
       "domain": "Extraction & Logistics",
       "name": "Conveyors, Routers, Junctions, Sorters & Core Storage",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 26,
       "evidence": [
         "docs/porting/factory-logistics.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamFactoryTickProbe.java",
+        "research/upstream-runtime/src/gameplay/java/UpstreamLogisticsProbe.java",
         "research/upstream-runtime/src/network-live/java/UpstreamBuildingConfig.java",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
-      "notes": "Belt transport, routers, junctions, overflow/underflow gates, configurable sorters, and core item storage run live on ARM11."
+      "notes": "Belt transport, routers, junctions, overflow/underflow gates, configurable sorters, and core item storage run live on ARM11. Host logistics probe: UPSTREAM_LOGISTICS sorter=copper:accepted,lead:rejected arrival=1 container=300 vault=1000 overflow=normal underflow=inverted; the factory probe also delivers a conveyor item into the core at tick 29. Software complete."
     },
     {
       "id": "item-crafters-factories",
