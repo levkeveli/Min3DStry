@@ -1459,14 +1459,17 @@ jobs:
           --server build/unified-smoke/server-release.jar
           --rom build/unified-smoke/upstream-probe.3dsx
           --output build/audio-smoke --model new3ds
-      - name: Join the New 3DS hosted world with pinned Java packets
+      - name: Join and play on the New 3DS host from stock Java
         if: ${{ !cancelled() && steps.live-emulator.outcome == 'success' && needs.changes.outputs.run_hosted_world == 'true' }}
-        run: >-
-          xvfb-run -a python3 tools/verify_upstream_hosted_world.py
-          --stock-jar build/unified-smoke/server-release.jar
-          --rom build/unified-smoke/upstream-probe.3dsx
-          --azahar "$AZAHAR_BIN"
-          --output build/hosted-world-smoke
+        run: |
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/Mindustry.jar" \
+            https://github.com/Anuken/Mindustry/releases/download/v160.8/Mindustry.jar
+          xvfb-run -a python3 tools/verify_upstream_hosted_world.py \
+            --stock-jar build/unified-smoke/server-release.jar \
+            --desktop-jar "$RUNNER_TEMP/Mindustry.jar" \
+            --rom build/unified-smoke/upstream-probe.3dsx \
+            --azahar "$AZAHAR_BIN" \
+            --output build/hosted-world-smoke
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -104,20 +104,21 @@ original server's first state snapshot, and sends a chat message through the
 stock handler. It requests a live snapshot of the player's core over UDP and
 reads the reply using the original Java client handler. The replay repeats
 these checks after disconnecting and rejoining with the same stock identity.
-The graphical Java v160.8 client joined the emulated Ground Zero host and
-mined copper. The host exited with a null reference after the remote
-client queued a conveyor. The pinned BuilderComp preview uses the desktop
-input handler. The handheld adapter uses the remote builder's plans for
-the stock block preview and keeps the stock build beam. The graphical
-placement replay still needs to pass with this adapter.
 
-The reference client loaded Glacier, received its chat echo, and read its
-Core Nucleus snapshot from the stock Java server. The native replay and
-desktop gameplay checks are pending.
+The graphical v160.8 desktop client joined the Ground Zero host in Azahar
+2126.2 New 3DS mode. It mined copper at `(126, 46)` and queued a conveyor
+at `(125, 50)`. The ARM11 host committed the conveyor at the same tile
+with rotation 0, the stock desktop received the finished placement, and
+the host released the peer slot on disconnect. The handheld uses the
+remote builder's plans for the stock preview and keeps the stock build
+beam. This replay used commit `5401c27` and ROM SHA-256
+`a0fdee63cb98b678752b0ad2aa261af037262fe48e92238ec64fcc13a0a082ec`.
+[ARM11 ROM artifact](https://github.com/levkeveli/Min3DStry/actions/runs/46043454166/artifacts/15222975748)
 
 ```sh
 python3 tools/verify_upstream_hosted_world.py --rom upstream-probe.3dsx \
-  --stock-jar server-release.jar --output build/hosted-world-smoke
+  --stock-jar server-release.jar --desktop-jar Mindustry.jar \
+  --output build/hosted-world-smoke
 ```
 
 1. **TCP Outer Framing:** `uint16_be payload_len` + `payload` bytes, read via stateful `TcpFrameReader` so partial headers/bodies across TCP segments and short UDP poll windows resume cleanly without dropping bytes.

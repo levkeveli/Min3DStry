@@ -181,6 +181,8 @@ def _classify_path(path: str, flags: dict[str, bool], probes: set[str]) -> str:
         RUNTIME + "src/unified/java/UpstreamHostedSession",
         RUNTIME + "src/network-live/java/UpstreamHostedNetProvider",
         RUNTIME + "src/network-live/java/UpstreamHostPacketCodec",
+        RUNTIME + "host/VerifyHostedDesktop.java",
+        RUNTIME + "src/singleplayer/java/port/render/UpstreamRemoteBuildPlans.java",
         RUNTIME + "arm11/m3ds_host_net_bridge.",
         "src/net/mindustry_host_",
         "include/net/mindustry_host_",

@@ -14,6 +14,10 @@ from verify_upstream_campaign_launch import write_input_replay
 from verify_upstream_live_net import SERVER_SHA256
 
 
+DESKTOP_SHA256 = "6dd6da921d5021a84823456e05b477ee8de8511990d40de850b37dd0905152f2"
+HOST_PEER_LEFT = r"UPSTREAM_HOST_PEER_LEFT slot=\d+\b"
+
+
 def join_stock_world(java: str, classpath: str, output: Path, name: str) -> int:
     payload = output / f"{name}-world-stream.zlib"
     client_log = output / f"{name}-pc.log"
@@ -34,6 +38,26 @@ def join_stock_world(java: str, classpath: str, output: Path, name: str) -> int:
     return payload.stat().st_size
 
 
+def play_stock_desktop(java, classpath, output, log, emulator_process, rpc):
+    desktop_log = output / "desktop.log"
+    screenshot = output / "desktop.png"
+    with desktop_log.open("wb") as stream:
+        subprocess.run(
+            [java, f"-Dmindustry.data.dir={output / 'pc-data'}", "-cp", classpath,
+             "VerifyHostedDesktop", str(screenshot)],
+            stdout=stream, stderr=subprocess.STDOUT, timeout=70, check=True,
+        )
+    placed = re.search(r"^STOCK_DESKTOP_HOST_BUILD block=conveyor x=(\d+) y=(\d+)$",
+                       desktop_log.read_text(encoding="utf-8"), re.MULTILINE)
+    if placed is None or not screenshot.is_file():
+        raise AssertionError("Stock desktop placement or framebuffer capture was missing")
+    x, y = placed.groups()
+    sp._wait_for_log(log, emulator_process, rf"UPSTREAM_SP_BUILT block=conveyor x={x} y={y} rotation=0\b", 15)
+    sp._wait_for_log(log, emulator_process, rf"(?s)(?:{HOST_PEER_LEFT}.*?){{2}}{HOST_PEER_LEFT}", 15)
+    (output / "new3ds-desktop-host.png").write_bytes(rpc.screenshot())
+    print(f"STOCK_DESKTOP_HOST_REPLAY model=new3ds conveyor={x},{y} disconnect=ok")
+
+
 def verify(args):
     with args.stock_jar.open("rb") as stream:
         if hashlib.file_digest(stream, "sha256").hexdigest() != SERVER_SHA256:
@@ -44,6 +68,12 @@ def verify(args):
     classes.mkdir()
     capture = Path(__file__).resolve().parents[1] / "research/upstream-runtime/host/UpstreamWorldStreamCapture.java"
     subprocess.run([args.javac, "-cp", str(args.stock_jar), "-d", str(classes), str(capture)], check=True)
+    if args.desktop_jar:
+        with args.desktop_jar.open("rb") as stream:
+            if hashlib.file_digest(stream, "sha256").hexdigest() != DESKTOP_SHA256:
+                raise ValueError("Expected the unmodified v160.8 graphical desktop release")
+        subprocess.run([args.javac, "-cp", str(args.desktop_jar), "-d", str(classes),
+                        str(capture.with_name("VerifyHostedDesktop.java"))], check=True)
     sd = output / "virtual-sd"
     root = sd / "3ds/min3dstry"
     root.mkdir(parents=True)
@@ -65,16 +95,18 @@ def verify(args):
             sp._wait_for_log(log, proc, r"UPSTREAM_HOST_READY version=160\.8 port=6567 .*tiles=256x256\b", 150)
             classpath = f"{classes}{os.pathsep}{args.stock_jar.resolve()}"
             joined = join_stock_world(args.java, classpath, output, "join")
-            left = r"UPSTREAM_HOST_PEER_LEFT slot=\d+\b"
-            sp._wait_for_log(log, proc, left, 30)
+            sp._wait_for_log(log, proc, HOST_PEER_LEFT, 30)
             rejoined = join_stock_world(args.java, classpath, output, "rejoin")
-            sp._wait_for_log(log, proc, rf"(?s){left}.*?{left}", 30)
+            sp._wait_for_log(log, proc, rf"(?s){HOST_PEER_LEFT}.*?{HOST_PEER_LEFT}", 30)
             rom_frame = rpc.screenshot()
             (output / "new3ds-host.png").write_bytes(rom_frame)
             if sp.az.inspect_png(rom_frame)["top_distinct_colors"] < 8:
                 raise AssertionError("The handheld did not draw the hosted world")
             print(f"UPSTREAM_HOSTED_WORLD_REPLAY model=new3ds stock-bytes={joined} "
                   f"rejoin-bytes={rejoined} snapshot=ok chat=ok core-sync=ok")
+            if args.desktop_jar:
+                desktop_classpath = f"{classes}{os.pathsep}{args.desktop_jar.resolve()}"
+                play_stock_desktop(args.java, desktop_classpath, output, log, proc, rpc)
         finally:
             rpc.close()
             sp._stop_proc(proc, emulator)
@@ -92,6 +124,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rom", type=Path, required=True)
     parser.add_argument("--stock-jar", type=Path, required=True)
+    parser.add_argument("--desktop-jar", type=Path,
+                        help="Also mine and build with the stock graphical v160.8 client")
     parser.add_argument("--azahar")
     parser.add_argument("--java", default="java")
     parser.add_argument("--javac", default="javac")
