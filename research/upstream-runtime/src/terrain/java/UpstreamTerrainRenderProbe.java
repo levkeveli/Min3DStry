@@ -1,5 +1,6 @@
 import arc.Core;
 import arc.graphics.Blending;
+import arc.Core;
 import arc.graphics.Color;
 import arc.graphics.g2d.TextureRegion;
 import arc.util.Align;
@@ -9,6 +10,7 @@ import mindustry.Vars;
 import org.teavm.interop.Import;
 import org.teavm.interop.Address;
 import org.teavm.interop.c.Include;
+import port.render.UpstreamBuildingLights;
 import port.render.UpstreamCanvasTexture;
 import port.render.UpstreamLogicFramebuffer.RasterTexture;
 import port.render.WeatherNoiseTexture;
@@ -212,6 +214,33 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
         NativeTerrain.finishTerrain();
     }
 
+    void beginWorldLights() {
+        UpstreamBuildingLights.beginFrame(worldLightsEnabled());
+    }
+
+    private static boolean worldLightsEnabled() {
+        var rules = Vars.state.rules;
+        return Vars.enableLight && rules.lighting && rules.ambientLight.a > 0.0001f
+            && Core.settings.getBool("drawlight", true);
+    }
+
+    void drawWorldLights() {
+        if (!worldLightsEnabled()) return;
+        if (NativeTerrain.lightBegin() == 0) throw new IllegalStateException("Unable to create the world light buffer");
+        Color ambient = Vars.state.rules.ambientLight;
+        int packed = (int)(ambient.r * 255) | (int)(ambient.g * 255) << 8
+            | (int)(ambient.b * 255) << 16 | (int)(ambient.a * 255) << 24;
+        try {
+            UpstreamBuildingLights.flushFrame();
+        } finally {
+            NativeTerrain.lightEnd(packed);
+        }
+    }
+
+    void endWorldLights() {
+        UpstreamBuildingLights.clearFrame();
+    }
+
     @Override
     public void draw(int page, int left, int top, int width, int height,
                      float x, float y, float originX, float originY, float drawWidth, float drawHeight,
@@ -367,6 +396,12 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
         @Import(name = "m3ds_terrain_finish_terrain")
         static native void finishTerrain();
+
+        @Import(name = "m3ds_terrain_light_begin")
+        static native int lightBegin();
+
+        @Import(name = "m3ds_terrain_light_end")
+        static native void lightEnd(int ambient);
 
         @Import(name = "m3ds_terrain_end")
         static native int end();

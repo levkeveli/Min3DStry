@@ -1568,7 +1568,12 @@ public final class UpstreamSinglePlayerApp {
             (viewport.bottom - 0.5f) * Vars.tilesize + Core.camera.height / 2f);
         advanceVisualState();
         draws = 0;
-        viewport.draw(drawWeatherUnder, drawEntities);
+        target.beginWorldLights();
+        try {
+            viewport.draw(drawWeatherUnder, drawEntities);
+        } finally {
+            target.endWorldLights();
+        }
         buildingControls.viewport(viewport.left, viewport.bottom, viewport.width(), viewport.height());
         if (unit != null && (lastLeft != viewport.left || lastBottom != viewport.bottom)) {
             lastLeft = viewport.left;
@@ -1636,6 +1641,7 @@ public final class UpstreamSinglePlayerApp {
         UpstreamObjectiveMarkers.draw(Vars.state.rules, 240f / (viewport.height() * Vars.tilesize),
             worldLabel);
         if (Core.settings.getBool("showweather", true)) weatherLayers.drawOver();
+        target.drawWorldLights();
         var orders = buildingControls.orders();
         orders.draw(viewport);
         var schematics = buildingControls.schematics();

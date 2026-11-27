@@ -1,20 +1,28 @@
 package port.render;
 
 import arc.Core;
-import arc.graphics.Blending;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.TextureRegion;
 import arc.math.Mathf;
 import arc.math.geom.Vec2;
-import mindustry.graphics.Layer;
+import arc.struct.Seq;
 
-/** Routes stock radial light requests during the handheld building pass. */
+/** Collects the stock world light requests for the handheld render target. */
 public final class UpstreamBuildingLights {
     private static final float[] segment = new float[24];
     private static final Vec2 perpendicular = new Vec2();
     private static final Vec2 axis = new Vec2();
+    private static final Seq<Runnable> shapes = new Seq<>();
+    private static final Seq<CircleLight> circles = new Seq<>();
+    private static int circleCount;
     private static boolean drawing;
+    private static boolean frame;
+    private static boolean collecting;
+
+    private static final class CircleLight {
+        float x, y, radius, color;
+    }
 
     private UpstreamBuildingLights() {
     }
@@ -27,15 +35,47 @@ public final class UpstreamBuildingLights {
         drawing = false;
     }
 
+    public static void beginFrame(boolean enabled) {
+        clearFrame();
+        frame = true;
+        collecting = enabled;
+    }
+
+    public static void flushFrame() {
+        if (!collecting) return;
+        collecting = false;
+        Draw.reset();
+        try {
+            for (Runnable shape : shapes) shape.run();
+            for (int i = 0; i < circleCount; i++) {
+                CircleLight light = circles.get(i);
+                drawCircle(light.x, light.y, light.radius, light.color);
+            }
+            Draw.flush();
+        } finally {
+            Draw.reset();
+        }
+    }
+
+    public static void clearFrame() {
+        shapes.clear();
+        circleCount = 0;
+        collecting = false;
+        frame = false;
+    }
+
     public static void line(float x, float y, float x2, float y2, float stroke, Color tint, float alpha) {
-        if (!drawing || alpha <= 0f || stroke <= 0f) return;
+        if (alpha <= 0f || stroke <= 0f || (!collecting && (frame || !drawing))) return;
+        float packed = Color.toFloatBits(tint.r, tint.g, tint.b, alpha);
+        if (collecting) shapes.add(() -> drawLine(x, y, x2, y2, stroke, packed));
+        else drawLine(x, y, x2, y2, stroke, packed);
+    }
+
+    private static void drawLine(float x, float y, float x2, float y2, float stroke, float packed) {
         TextureRegion middle = Core.atlas.find("circle-mid"), end = Core.atlas.find("circle-end");
         if (!middle.found() || !end.found()) return;
-        float layer = Draw.z();
-        Draw.z(Layer.effect);
-        Draw.blend(Blending.additive);
         try {
-            Draw.color(tint, alpha);
+            Draw.color(packed);
             // The pinned LightRenderer builds a textured strip and two caps.
             float rotation = Mathf.angleExact(x2 - x, y2 - y);
             perpendicular.trnsExact(rotation + 90f, stroke);
@@ -48,9 +88,7 @@ public final class UpstreamBuildingLights {
             quad(end, lx4, ly4, lx3, ly3, lx3 + axis.x, ly3 + axis.y, lx4 + axis.x, ly4 + axis.y);
             quad(end, lx2, ly2, lx1, ly1, lx1 - axis.x, ly1 - axis.y, lx2 - axis.x, ly2 - axis.y);
         } finally {
-            Draw.blend();
             Draw.color();
-            Draw.z(layer);
         }
     }
 
@@ -74,33 +112,49 @@ public final class UpstreamBuildingLights {
     }
 
     public static void textured(float x, float y, TextureRegion region, float rotation, Color color, float opacity) {
-        if (!drawing || region == null || !region.found() || opacity <= 0f) return;
-        float layer = Draw.z();
-        Draw.z(Layer.effect);
-        Draw.blend(Blending.additive);
+        if (region == null || !region.found() || opacity <= 0f || (!collecting && (frame || !drawing))) return;
+        float packed = color.toFloatBits();
+        float xscl = Draw.xscl, yscl = Draw.yscl;
+        if (collecting) shapes.add(() -> drawTexture(x, y, region, rotation, packed, opacity, xscl, yscl));
+        else drawTexture(x, y, region, rotation, packed, opacity, xscl, yscl);
+    }
+
+    private static void drawTexture(float x, float y, TextureRegion region, float rotation,
+                                    float packed, float opacity, float xscl, float yscl) {
+        Draw.color(packed);
+        Draw.alpha(opacity);
+        Draw.scl(xscl, yscl);
         try {
-            Draw.color(color, opacity);
             Draw.rect(region, x, y, rotation);
         } finally {
-            Draw.blend();
+            Draw.scl();
             Draw.color();
-            Draw.z(layer);
         }
     }
 
-    public static void radial(float x, float y, float radius, Color color, float opacity) {        if (!drawing || radius <= 0f || opacity <= 0f) return;
+    public static void radial(float x, float y, float radius, Color color, float opacity) {
+        if (radius <= 0f || opacity <= 0f || (!collecting && (frame || !drawing))) return;
+        float packed = Color.toFloatBits(color.r, color.g, color.b, opacity);
+        if (collecting) {
+            if (circleCount == circles.size) circles.add(new CircleLight());
+            CircleLight light = circles.get(circleCount++);
+            light.x = x;
+            light.y = y;
+            light.radius = radius;
+            light.color = packed;
+        } else {
+            drawCircle(x, y, radius, packed);
+        }
+    }
+
+    private static void drawCircle(float x, float y, float radius, float packed) {
         var region = Core.atlas.find("circle-shadow");
         if (!region.found()) return;
-        float layer = Draw.z();
-        Draw.z(Layer.effect);
-        Draw.blend(Blending.additive);
         try {
-            Draw.color(color, opacity);
+            Draw.color(packed);
             Draw.rect(region, x, y, radius * 2f, radius * 2f);
         } finally {
-            Draw.blend();
             Draw.color();
-            Draw.z(layer);
         }
     }
 }
