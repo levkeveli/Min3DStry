@@ -47,7 +47,7 @@ class PortProgressTests(unittest.TestCase):
         self.assertIn("Remaining software work:", svg)
         hardware = port_progress.compute_hardware_progress(ledger)
         self.assertEqual(hardware["verified"], 1)
-        self.assertEqual((REPO_ROOT / "docs/hardware-gauge.svg").read_text(),
+        self.assertEqual((REPO_ROOT / "docs/hardware-gauge.svg").read_text(encoding="utf-8"),
                          port_progress.render_hardware_svg(hardware))
         for cat in summary["categories"]:
             self.assertIn(escape(cat["name"]), svg)
