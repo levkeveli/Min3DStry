@@ -304,7 +304,7 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Schematic Import/Export & RTS Unit Command",
       "weight": 1,
-      "status": "partial-arm11",
+      "status": "live-arm11",
       "modes": ["offline", "multiplayer"],
       "issue": 40,
       "evidence": [
@@ -313,9 +313,10 @@
         "tools/verify_stock_schematic_capture.py",
         "tools/verify_stock_command_orders.py",
         "research/upstream-runtime/src/network-live/java/UpstreamCommandOrders.java",
-        "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java"
+        "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java",
+        "tools/verify_stock_schematics.py"
       ],
-      "notes": "The unified client places and exports stock .msch files. The touch grid selects allied units by tap or press-drag rectangle and sends original orders and stances. Schematic naming and metadata editing is live; clipboard sharing remains open."
+      "notes": "The unified client places and exports stock .msch files, edits their metadata, and shares stock v160.8 clipboard text from the title library, offline play and multiplayer. The touch grid selects allied units by tap or press-drag rectangle and sends original orders and stances. New 3DS Azahar and unmodified Java verified rotated placement, exported text, queued Dagger movement and factory rally points. Physical verification is pending."
     },
     {
       "id": "content-database-page",

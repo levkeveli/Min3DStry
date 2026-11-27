@@ -28,6 +28,7 @@ import mindustry.world.Build;
 
 /** Uses the pinned schematic reader, transforms, and construction plans behind the touch picker. */
 final class UpstreamSchematicPlacement {
+    private static final String clipboardName = "clipboard.txt";
     private final Fi directory;
     private final int[] icons = new int[UpstreamBuildMenu.ROWS];
     private final Rect footprint = new Rect();
@@ -45,7 +46,7 @@ final class UpstreamSchematicPlacement {
     private Predicate<String> confirmReplacement = name -> false;
     private Function<String, String> editName;
     private Function<String, String> editDescription;
-    private boolean editing;
+    private boolean editing, sharing;
 
     UpstreamSchematicPlacement(Fi directory) {
         this.directory = directory;
@@ -60,18 +61,30 @@ final class UpstreamSchematicPlacement {
     }
 
     void open() {
-        files = libraryFiles();
-        page = 0;
+        readFiles();
         open = true;
-        editing = false;
+        editing = sharing = false;
         refreshLabels(null);
     }
 
+    private void readFiles() {
+        files = libraryFiles();
+        page = 0;
+    }
+
     void tap(int x, int y) {
-        if (x >= 152 && x < 216 && y >= 4 && y < 38 && editName != null) {
-            editing = !editing;
-            System.out.println("UPSTREAM_SCHEMATIC_EDIT_MODE enabled=" + editing);
+        if (x >= 96 && x < 144 && y >= 4 && y < 38) {
+            sharing = !sharing;
+            editing = false;
             refreshLabels(null);
+        } else if (x >= 152 && x < 216 && y >= 4 && y < 38) {
+            if (sharing) {
+                importClipboardFromPicker();
+            } else if (editName != null) {
+                editing = !editing;
+                System.out.println("UPSTREAM_SCHEMATIC_EDIT_MODE enabled=" + editing);
+                refreshLabels(null);
+            }
         } else if (x >= 224 && x < 312 && y >= 4 && y < 38) {
             editing = false;
             open = false;
@@ -91,7 +104,8 @@ final class UpstreamSchematicPlacement {
                 && y < UpstreamBuildMenu.ROW_TOP + UpstreamBuildMenu.ROWS * UpstreamBuildMenu.ROW_HEIGHT) {
             int index = page * UpstreamBuildMenu.ROWS + (y - UpstreamBuildMenu.ROW_TOP) / UpstreamBuildMenu.ROW_HEIGHT;
             if (index < files.length) {
-                if (editing) edit(files[index]);
+                if (sharing) exportClipboardFromPicker(files[index]);
+                else if (editing) edit(files[index]);
                 else if (Vars.state.rules.schematicsAllowed) select(files[index]);
             }
         }
@@ -116,6 +130,51 @@ final class UpstreamSchematicPlacement {
         }
     }
 
+    private void importClipboardFromPicker() {
+        try {
+            importClipboard();
+            readFiles();
+            refreshLabels(null, Core.bundle.get("schematic.saved"));
+        } catch (IOException | RuntimeException error) {
+            refreshLabels(null, Core.bundle.get("error"));
+            System.out.println("UPSTREAM_SCHEMATIC_CLIPBOARD_ERROR import " + error.getMessage());
+        }
+    }
+
+    private void exportClipboardFromPicker(Fi source) {
+        try {
+            exportClipboard(source);
+            refreshLabels(null, Core.bundle.get("copied"));
+        } catch (IOException | RuntimeException error) {
+            refreshLabels(null, Core.bundle.get("error"));
+            System.out.println("UPSTREAM_SCHEMATIC_CLIPBOARD_ERROR export " + error.getMessage());
+        }
+    }
+
+    Fi importClipboard() throws IOException {
+        Schematic schematic = Schematics.readBase64(directory.child(clipboardName).readString("UTF-8"));
+        // Stock import removes the Workshop ID. Publish it with the new file in one write.
+        schematic.tags.remove("steamid");
+        Fi destination = availableCaptureFile();
+        if (!schematic.tags.containsKey("name")) schematic.tags.put("name", destination.nameWithoutExtension());
+        publish(schematic, destination, false);
+        System.out.println("UPSTREAM_SCHEMATIC_CLIPBOARD_IMPORTED file=" + destination.name());
+        return destination;
+    }
+
+    void exportClipboard(Fi source) throws IOException {
+        String encoded = stock().writeBase64(readSchematic(source));
+        Fi destination = directory.child(clipboardName);
+        File temporary = File.createTempFile("schematic-", ".tmp", directory.file());
+        try {
+            new Fi(temporary).writeString(encoded, false, "UTF-8");
+            publishStagedFile(temporary, destination, destination.exists());
+            System.out.println("UPSTREAM_SCHEMATIC_CLIPBOARD_EXPORTED file=" + source.name());
+        } finally {
+            temporary.delete();
+        }
+    }
+
     private void select(Fi file) {
         try {
             selected = readSchematic(file);
@@ -134,11 +193,11 @@ final class UpstreamSchematicPlacement {
     }
 
     private void refreshLabels(String invalidFile, String notice) {
-        String title = editing ? Core.bundle.get("schematic.edit", "Edit schematic")
-            : Core.bundle.get("schematics", "Schematics");
+        String title = sharing ? Core.bundle.get("editor.export", "Export")
+            : editing ? Core.bundle.get("schematic.edit", "Edit schematic") : Core.bundle.get("schematics", "Schematics");
         var text = new StringBuilder(notice == null ? title : notice);
         if (notice == null) {
-            if (!Vars.state.rules.schematicsAllowed) {
+            if (!sharing && !Vars.state.rules.schematicsAllowed) {
                 text.append(" (disabled)");
             } else if (files.length == 0) {
                 text.append(" (no .msch files)");
@@ -146,6 +205,7 @@ final class UpstreamSchematicPlacement {
                 text.append("  ").append(page + 1).append('/').append(1 + (files.length - 1) / UpstreamBuildMenu.ROWS);
             }
         }
+        // The native picker consumes the title, six rows and three buttons even when a notice replaces the title.
         text.append('\0');
         for (int row = 0; row < UpstreamBuildMenu.ROWS; row++) {
             int index = page * UpstreamBuildMenu.ROWS + row;
@@ -158,6 +218,10 @@ final class UpstreamSchematicPlacement {
             }
             text.append('\0');
         }
+        text.append(sharing ? Core.bundle.get("back") : Core.bundle.get("share", "Share")).append('\0');
+        text.append(sharing ? Core.bundle.get("editor.import", "Import") : Core.bundle.get("editor.edit", "Edit"))
+            .append('\0');
+        text.append(Core.bundle.get("schematic.capture", "Capture")).append('\0');
         labels = text.toString().getBytes(StandardCharsets.UTF_8);
     }
 
@@ -344,15 +408,19 @@ final class UpstreamSchematicPlacement {
         File temporary = File.createTempFile("schematic-", ".tmp", directory.file());
         try {
             Schematics.write(schematic, new Fi(temporary));
-            if (!replacing) {
-                if (destination.exists() || !temporary.renameTo(destination.file())) {
-                    throw new IOException("Unable to publish " + destination.name());
-                }
-            } else if (!temporary.renameTo(destination.file())) {
-                replaceOnFat(temporary, destination.file());
-            }
+            publishStagedFile(temporary, destination, replacing);
         } finally {
             temporary.delete();
+        }
+    }
+
+    private static void publishStagedFile(File temporary, Fi destination, boolean replacing) throws IOException {
+        if (!replacing) {
+            if (destination.exists() || !temporary.renameTo(destination.file())) {
+                throw new IOException("Unable to publish " + destination.name());
+            }
+        } else if (!temporary.renameTo(destination.file())) {
+            replaceOnFat(temporary, destination.file());
         }
     }
 

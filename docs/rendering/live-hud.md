@@ -35,7 +35,9 @@ off and a campaign sector is active;
 - the stock guardian bar (`state.teams.bosses`) above the bottom edge: one
   boss emoji per guardian (six at most, then `+`), the localized `guardian`
   text and a total-health fill, shown only while wave rules are active;
-- a fullscreen minimap view on `R`: the same stock sampled texture over a dark
+- a fullscreen minimap view on `R` outside build overlays. During schematic
+  placement, `R` rotates the preview. In command mode it toggles order queuing.
+  The view shows the same stock sampled texture over a dark
   backdrop, scaled from 240 px to 960 px with circle-pad/d-pad panning and
   X/Y zoom (1x to 4x), closed with `R` or `B`;
 - a live minimap rendered from a 64x64 sample at 56 px in the top-right

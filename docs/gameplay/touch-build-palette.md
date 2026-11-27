@@ -78,6 +78,29 @@ The keyboard opens with the current name and then the current description.
 Confirm both fields to save the changes to the same file. Cancel either
 prompt to keep the previous metadata.
 
+The **Share** mode uses `sd:/3ds/min3dstry/schematics/clipboard.txt` in
+place of a system clipboard. For import, save the text from Mindustry's
+**Copy to Clipboard** action in that file, then tap **Share** and
+**Import**. The original clipboard reader decodes the text and the
+picker saves a new `.msch` file. For export, tap a schematic row while
+in **Share** mode. Copy the resulting text file into the original
+game's clipboard import. Export replaces the text file. The saved
+schematic keeps its original layout and metadata. From the title
+screen, **Database → Schematics** also offers **Import** at the end of
+the library and **Export** in each schematic's details. Add
+`--clipboard` to the schematic replay above to verify both the title
+library and in-game sharing. The replay requires the exported text
+to replace the Workshop-tagged input and uses unmodified Java
+v160.8 to check its contents.
+
+The ARM11 build at `e1a88dc` passed the title, offline and multiplayer
+share replays in New 3DS Azahar 2126.2. Unmodified Java v160.8 read the
+exported text from all three routes. It confirmed in both the offline
+save and the live session that rotating and building the schematic
+spent materials, linked both Bridge Conveyors, and kept the Sorter's
+Lead filter.
+[Exact ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45743676841)
+
 The hosted New 3DS replay used `verify_stock_schematic_capture.py --xdotool
 --edit` to change both fields. Unmodified Mindustry v160.8 Java reopened
 the file and verified the original block layout, bridge link, and Lead filter.
@@ -266,6 +289,11 @@ The [ARM11 command build](https://github.com/levkeveli/Min3DStry/actions/runs/45
 passed on Azahar 2126.2 Original and New 3DS profiles. Stock Java
 verified that both Daggers moved and that the Ground Factory had the
 chosen rally point in both offline saves and both live sessions.
+
+The [schematic sharing build](https://github.com/levkeveli/Min3DStry/actions/runs/45743676841)
+also passed the command replay in New 3DS mode. Pressing R queued the
+move for both Daggers. Unmodified Java v160.8 confirmed their movement
+and the stock factory rally point in the offline save and live session.
 
 ```bash
 python3 tools/verify_stock_command_orders.py \

@@ -112,6 +112,7 @@ public final class UpstreamBuildControlsReference {
         verifyStockLinks(unit);
         verifySchematicPlacement(unit);
         verifySchematicCapture(unit);
+        verifySchematicClipboard();
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
     }
 
@@ -686,6 +687,76 @@ public final class UpstreamBuildControlsReference {
             Files.deleteIfExists(factory);
             Files.deleteIfExists(broken);
             Files.deleteIfExists(folder);
+        }
+    }
+
+    private static void verifySchematicClipboard() throws Exception {
+        var folder = Files.createTempDirectory("min3dstry-schematic-clipboard");
+        var clipboard = folder.resolve("clipboard.txt");
+        var destination = folder.resolve("Schematic-1.msch");
+        try {
+            var tiles = Seq.with(
+                new Schematic.Stile(Blocks.itemBridge, 0, 0, new Point2(2, 0), (byte)1),
+                new Schematic.Stile(Blocks.sorter, 1, 0, Items.lead, (byte)2),
+                new Schematic.Stile(Blocks.itemBridge, 2, 0, null, (byte)3)
+            );
+            var tags = StringMap.of("name", "Linked transport", "description", "Retain this description");
+            var stock = new Schematic(tiles, tags, 3, 1);
+            stock.tags.put("steamid", "1234");
+            stock.labels.add("factory");
+            var encoder = new Schematics();
+            Files.writeString(clipboard, encoder.writeBase64(stock) + "\n");
+            var picker = new UpstreamSchematicPlacement(new Fi(folder.toString()));
+            picker.open();
+            picker.tap(120, 21);
+            picker.tap(184, 21);
+            requireSchematicNoticeRows(picker, Core.bundle.get("schematic.saved"), stock.name());
+
+            byte[] imported = Files.readAllBytes(destination);
+            Files.writeString(clipboard, "invalid clipboard text");
+            picker.tap(184, 21);
+            requireSchematicNoticeRows(picker, Core.bundle.get("error"), stock.name());
+            if (Files.exists(folder.resolve("Schematic-2.msch"))
+                    || !java.util.Arrays.equals(imported, Files.readAllBytes(destination))) {
+                throw new AssertionError("Malformed clipboard text changed an existing schematic");
+            }
+
+            picker.tap(140, 55);
+            requireSchematicNoticeRows(picker, Core.bundle.get("copied"), stock.name());
+            var result = Schematics.readBase64(Files.readString(clipboard));
+            if (result.width != 3 || result.height != 1 || result.tiles.size != 3 || result.hasSteamID()
+                    || !stock.name().equals(result.name()) || !stock.description().equals(result.description())
+                    || result.labels.size != 1 || !result.labels.first().equals("factory")) {
+                throw new AssertionError("The stock clipboard round trip changed metadata or dimensions");
+            }
+            for (int i = 0; i < tiles.size; i++) {
+                var expected = tiles.get(i);
+                var actual = result.tiles.get(i);
+                if (actual.block != expected.block || actual.x != expected.x || actual.y != expected.y
+                        || actual.rotation != expected.rotation || !java.util.Objects.equals(actual.config, expected.config)) {
+                    throw new AssertionError("The stock clipboard round trip changed tile " + i);
+                }
+            }
+            System.out.println("UPSTREAM_SCHEMATIC_CLIPBOARD stock=ok tiles=3 malformed=unchanged");
+        } finally {
+            Files.deleteIfExists(clipboard);
+            Files.deleteIfExists(destination);
+            Files.deleteIfExists(folder);
+        }
+    }
+
+    private static void requireSchematicNoticeRows(UpstreamSchematicPlacement picker, String notice, String schematic) {
+        int buttons = 1 + UpstreamBuildMenu.ROWS;
+        String[] labels = new String(picker.labels(), java.nio.charset.StandardCharsets.UTF_8).split("\0", -1);
+        if (labels.length != buttons + 4 || !labels[0].equals(notice) || !labels[1].equals(schematic)
+                || !labels[buttons].equals(Core.bundle.get("back"))
+                || !labels[buttons + 1].equals(Core.bundle.get("editor.import", "Import"))
+                || !labels[buttons + 2].equals(Core.bundle.get("schematic.capture", "Capture"))
+                || !labels[buttons + 3].isEmpty()) {
+            throw new AssertionError("Invalid native schematic notice labels: " + java.util.Arrays.toString(labels));
+        }
+        for (int row = 2; row < buttons; row++) {
+            if (!labels[row].isEmpty()) throw new AssertionError("Expected an empty schematic row at " + row);
         }
     }
 

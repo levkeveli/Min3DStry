@@ -621,12 +621,31 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private boolean chooseTitleSchematics(UpstreamSchematicPlacement library) {
-        Fi[] files = library.libraryFiles();
-        System.out.println("UPSTREAM_TITLE_SCHEMATICS files=" + files.length);
-        return browseTitlePages(Core.bundle.get("schematics"), files.length, index -> {
-            String name = UpstreamSchematicPlacement.readDisplayName(files[index]);
-            return name != null ? name : files[index].nameWithoutExtension();
-        }, index -> showTitleSchematic(library, files[index]));
+        int selected = 0;
+        String title = Core.bundle.get("schematics");
+        System.out.println("UPSTREAM_TITLE_SCHEMATICS files=" + library.libraryFiles().length);
+        while (true) {
+            Fi[] files = library.libraryFiles();
+            selected = chooseTitlePagedRow(title, files.length + 1, Math.min(selected, files.length), index -> {
+                if (index == files.length) return Core.bundle.get("editor.import");
+                String name = UpstreamSchematicPlacement.readDisplayName(files[index]);
+                return name != null ? name : files[index].nameWithoutExtension();
+            });
+            if (selected < 0) return selected == -1;
+            Fi file;
+            if (selected == files.length) {
+                try {
+                    file = library.importClipboard();
+                } catch (IOException | RuntimeException failure) {
+                    System.out.println("UPSTREAM_SCHEMATIC_CLIPBOARD_ERROR import " + failure.getMessage());
+                    if (chooseTitleRow(Core.bundle.get("error"), "back") == -2) return false;
+                    continue;
+                }
+            } else {
+                file = files[selected];
+            }
+            if (!showTitleSchematic(library, file)) return false;
+        }
     }
 
     private boolean showTitleSchematic(UpstreamSchematicPlacement library, Fi file) {
@@ -635,11 +654,14 @@ public final class UpstreamSinglePlayerApp {
             System.out.println("UPSTREAM_TITLE_SCHEMATIC file=" + file.name() + " blocks=" + schematic.tiles.size);
             var details = Core.bundle.format("schematic.info", schematic.width, schematic.height, schematic.tiles.size);
             int action = chooseTitleRow(schematic.name(), 0,
-                new String[]{Core.bundle.get("schematic.edit"), Core.bundle.get("back")},
+                new String[]{Core.bundle.get("schematic.edit"), Core.bundle.get("back"), Core.bundle.get("editor.export")},
                 details, schematic.description());
             if (action == 0) {
                 library.editMetadata(file, UpstreamTerrainRenderProbe::editSchematicName,
                     UpstreamTerrainRenderProbe::editSchematicDescription);
+            } else if (action == 2) {
+                library.exportClipboard(file);
+                return chooseTitleRow(Core.bundle.get("copied"), "back") != -2;
             }
             return action != -2;
         } catch (IOException | RuntimeException failure) {
@@ -1408,7 +1430,8 @@ public final class UpstreamSinglePlayerApp {
                     moveInput.limit(1f);
                 }
                 boolean mapWasOpen = minimapView.open();
-                if ((input & UpstreamSinglePlayerInput.R_PRESSED) != 0) {
+                if ((input & UpstreamSinglePlayerInput.R_PRESSED) != 0
+                        && (mapWasOpen || !buildingControls.blocksWeaponInput())) {
                     if (mapWasOpen) minimapView.close(); else minimapView.openView();
                     System.out.println("UPSTREAM_MINIMAP_VIEW open=" + minimapView.open());
                 }
