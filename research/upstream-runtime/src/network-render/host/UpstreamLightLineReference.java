@@ -1,3 +1,4 @@
+import arc.Core;
 import arc.files.Fi;
 import arc.graphics.Color;
 import mindustry.Vars;
@@ -8,12 +9,13 @@ import port.render.UpstreamBuildingLights;
 import port.render.UpstreamFluidAtlas;
 
 /**
- * Verifies the patched non-radial (line) light path when the desktop Renderer is
- * absent. Drawf.light(x, y, x2, y2, ...) should reach UpstreamBuildingLights
- * instead of returning early.
+ * Verifies the patched non-radial light paths when the desktop Renderer is
+ * absent: Drawf.light segment and textured-region calls should reach
+ * UpstreamBuildingLights instead of returning early.
  */
 public final class UpstreamLightLineReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private int quads;
+    private int sprites;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3) {
@@ -28,16 +30,24 @@ public final class UpstreamLightLineReference implements UpstreamTerrainDrawProb
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         viewport.moveTo(73, 20);
 
+        var region = Core.atlas.find("circle-shadow");
+        if (!region.found()) throw new AssertionError("Missing stock light texture");
+
         UpstreamBuildingLights.begin();
         try {
             Drawf.light(600f, 200f, 620f, 208f, 4f, Color.red, 1f);
+            Drawf.light(610f, 210f, region, 0f, Color.green, 1f);
         } finally {
             UpstreamBuildingLights.end();
         }
         if (target.quads == 0) {
             throw new AssertionError("Stock line light drew no geometry");
         }
-        System.out.println("UPSTREAM_LIGHT_LINE stroke=4 quads=" + target.quads);
+        if (target.sprites == 0) {
+            throw new AssertionError("Stock textured light drew no geometry");
+        }
+        System.out.println("UPSTREAM_LIGHT_PATHS line=ok textured=ok quads=" + target.quads
+            + " sprites=" + target.sprites);
     }
 
     @Override public void begin(int left, int bottom, int width, int height) {}
@@ -50,5 +60,6 @@ public final class UpstreamLightLineReference implements UpstreamTerrainDrawProb
     public void draw(int page, int left, int top, int width, int height, float x, float y,
                      float originX, float originY, float drawWidth, float drawHeight,
                      float rotation, int color, int mixColor, arc.graphics.Blending blending) {
+        sprites++;
     }
 }

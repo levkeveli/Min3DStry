@@ -5,6 +5,7 @@ import arc.graphics.Blending;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.Lines;
+import arc.graphics.g2d.TextureRegion;
 import mindustry.graphics.Layer;
 
 /** Routes stock radial light requests during the handheld building pass. */
@@ -31,6 +32,21 @@ public final class UpstreamBuildingLights {
             Draw.color(tint, alpha);
             Lines.stroke(stroke);
             Lines.line(x, y, x2, y2);
+        } finally {
+            Draw.blend();
+            Draw.color();
+            Draw.z(layer);
+        }
+    }
+
+    public static void textured(float x, float y, TextureRegion region, float rotation, Color color, float opacity) {
+        if (!drawing || region == null || !region.found() || opacity <= 0f) return;
+        float layer = Draw.z();
+        Draw.z(Layer.effect);
+        Draw.blend(Blending.additive);
+        try {
+            Draw.color(color, opacity);
+            Draw.rect(region, x, y, rotation);
         } finally {
             Draw.blend();
             Draw.color();

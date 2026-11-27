@@ -1444,6 +1444,16 @@ import port.audio.Arm11Audio;''')
             return;
         }
         renderer.lights.line(x, y, x2, y2, stroke, tint, alpha);''')
+                    def texturedLight = '''        if(renderer == null) return;
+        renderer.lights.add(x, y, region, rotation, color, opacity);'''
+                    if (source.count(texturedLight) != 1) {
+                        throw new GradleException('Pinned textured light entry point changed')
+                    }
+                    source = source.replace(texturedLight, '''        if(renderer == null){
+            UpstreamBuildingLights.textured(x, y, region, rotation, color, opacity);
+            return;
+        }
+        renderer.lights.add(x, y, region, rotation, color, opacity);''')
                     def stockUniforms = '''        Shaders.build.region = region;
         Shaders.build.progress = progress;
         Shaders.build.color.set(color);
