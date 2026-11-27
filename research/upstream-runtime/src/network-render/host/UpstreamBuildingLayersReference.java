@@ -68,6 +68,7 @@ import mindustry.gen.Tankc;
 import mindustry.gen.UnitWaterMove;
 import mindustry.world.blocks.liquid.Conduit.ConduitBuild;
 import mindustry.world.blocks.liquid.LiquidBlock;
+import mindustry.game.FogControl;
 import mindustry.game.Team;
 import mindustry.game.MapObjectives;
 import mindustry.game.MapObjectives.BuildCountObjective;
@@ -314,7 +315,37 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
                     || Byte.toUnsignedInt(alpha[4]) != 182) {
                 throw new AssertionError("Removing a stock building left its shadow or cleared terrain shadows");
             }
-            System.out.println("UPSTREAM_TILE_SHADOW alpha=182 footprint=4 terrain=margin removed=ok");
+            var previousFog = Vars.fogControl;
+            try {
+                Vars.fogControl = new FogControl();
+                rules.pvp = true;
+                rules.staticFog = rules.fog = true;
+                wall.setBlock(Blocks.copperWallLarge, Team.crux);
+                UpstreamTileShadows.sample(world, rules, Team.sharded, 5, 5, 2, 2, alpha);
+                if (!wall.build.inFogTo(Team.sharded) || alpha[5] != 0 || alpha[10] != 0
+                        || Byte.toUnsignedInt(alpha[4]) != 182) {
+                    throw new AssertionError("An undiscovered enemy footprint affected the shadow mask");
+                }
+                // The original BlockRenderer saves the viewer flag when it first draws a revealed building.
+                wall.build.visibleFlags |= 1L << Team.sharded.id;
+                UpstreamTileShadows.sample(world, rules, Team.sharded, 5, 5, 2, 2, alpha);
+                if (Byte.toUnsignedInt(alpha[5]) != 182 || Byte.toUnsignedInt(alpha[10]) != 182) {
+                    throw new AssertionError("A remembered enemy footprint did not cast its stock shadow");
+                }
+                UpstreamTileShadows.sample(world, rules, Team.green, 5, 5, 2, 2, alpha);
+                if (!wall.build.inFogTo(Team.green) || alpha[5] != 0 || alpha[10] != 0) {
+                    throw new AssertionError("The shadow mask retained another team's discovery");
+                }
+                wall.setBlock(Blocks.air);
+                UpstreamTileShadows.sample(world, rules, Team.sharded, 5, 5, 2, 2, alpha);
+                if (alpha[5] != 0 || alpha[10] != 0 || Byte.toUnsignedInt(alpha[4]) != 182) {
+                    throw new AssertionError("Removing a known enemy building did not clear its shadow");
+                }
+            } finally {
+                rules.fog = false;
+                Vars.fogControl = previousFog;
+            }
+            System.out.println("UPSTREAM_TILE_SHADOW alpha=182 footprint=4 terrain=margin removed=ok fog=team-memory");
         } finally {
             wall.setBlock(Blocks.air);
             Vars.state.rules = previousRules;
