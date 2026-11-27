@@ -115,6 +115,14 @@ beam. This replay used commit `5401c27` and ROM SHA-256
 `a0fdee63cb98b678752b0ad2aa261af037262fe48e92238ec64fcc13a0a082ec`.
 [ARM11 ROM artifact](https://github.com/levkeveli/Min3DStry/actions/runs/46043454166/artifacts/15222975748)
 
+The grouped ARM11 run at `1401321` passed both the stock Java transport
+join/rejoin and graphical v160.8 replay on the same ROM. The graphical
+client and host logs both reported the conveyor at `(125, 50)`, and the
+host log showed the peer slot released on disconnect. Both framebuffers
+were inspected. This evidence covers emulated New 3DS hosting.
+[Replay screenshots and logs](https://github.com/levkeveli/Min3DStry/actions/runs/46050081057/artifacts/15225851380) ·
+[Exact ARM11 ROM](https://github.com/levkeveli/Min3DStry/actions/runs/46050081057/artifacts/15224299432)
+
 ```sh
 python3 tools/verify_upstream_hosted_world.py --rom upstream-probe.3dsx \
   --stock-jar server-release.jar --desktop-jar Mindustry.jar \

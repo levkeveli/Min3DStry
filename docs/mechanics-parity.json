@@ -616,7 +616,7 @@
         "docs/net/upstream-protocol.md",
         "tools/verify_upstream_hosted_world.py"
       ],
-      "notes": "The combined ROM joins a stock Java server and hosts Ground Zero in New 3DS Azahar. The stock graphical v160.8 client joined, mined and placed a conveyor on the host. LAN discovery and the full server browser are tracked separately."
+      "notes": "The combined ROM joins a stock Java server and hosts Ground Zero in New 3DS Azahar. The same ARM11 ROM passed stock Java join/rejoin, state snapshots, chat, UDP core updates, and a graphical v160.8 replay that mined and placed a conveyor on the host. LAN discovery and the full server browser are tracked separately."
     },
     {
       "id": "unified-single-3dsx",
