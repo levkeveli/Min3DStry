@@ -430,6 +430,12 @@ if (probe in ['network-render', 'unified']) {
             args glacierPath, atlasPath, colorsPath
         }
     }
+    tasks.register('runCameraZoomJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamCameraZoomReference'
+        if (!glacierPath.isEmpty()) args glacierPath
+    }
 }
 if (usesSinglePlayer) {
     sourceSets.main.java.srcDir('src/singleplayer/java')

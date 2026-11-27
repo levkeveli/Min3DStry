@@ -351,15 +351,16 @@
       "domain": "Combat, Units & Visual FX",
       "name": "Player Unit Flight/Movement & Follow Camera",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 30,
       "evidence": [
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
-        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamCameraZoomReference.java"
       ],
-      "notes": "Circle Pad and D-Pad player movement (Alpha/Gamma) with top-screen camera follow work live in offline and multiplayer ARM11 builds."
+      "notes": "Circle Pad and D-Pad player movement (Alpha/Gamma) with top-screen camera follow work live in offline and multiplayer ARM11 builds. Host camera check: UPSTREAM_CAMERA_ZOOM_REFERENCE in=ok clamp=ok span=8x6..32x24 grid=77,23. Software complete."
     },
     {
       "id": "enemy-waves-pathfinding",
