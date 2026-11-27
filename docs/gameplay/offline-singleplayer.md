@@ -102,6 +102,12 @@ with the normal pinned runtime Gradle properties. Use
 to exercise sole-save resume, graphical selection, and save-back in Azahar's
 New 3DS profile.
 
+On pause-menu Load, the port drops old player and UI references before the
+stock save decoder runs. The upstream reset also clears the retired building
+and floor indexes and the backing slots of the temporary block lists. The
+live world rebuilds its indexes during the normal WorldLoad event. If decode
+fails, the exit path leaves the selected save and backup available for recovery.
+
 For the dense Serpulo 242 replay, generate fixtures from the same stock Java
 server and use the matching emulator verifier flag.
 

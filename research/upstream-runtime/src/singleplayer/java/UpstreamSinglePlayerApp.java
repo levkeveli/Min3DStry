@@ -1431,9 +1431,8 @@ public final class UpstreamSinglePlayerApp {
 
     private boolean runMainLoop(Fi saveFile) throws IOException {
         var unit = session.ensurePlayerSpawn();
-        var core = session.core();
         UpstreamHudFixture.apply();
-        lastCopper = core == null ? 0 : core.items.get(Items.copper);
+        lastCopper = session.coreCopper();
         if (unit != null) {
             System.out.println("UPSTREAM_SP_READY unit=" + unit.id() + " x=" + unit.x() + " y=" + unit.y()
                 + " copper=" + lastCopper + " wave=" + Vars.state.wave);
@@ -1497,8 +1496,15 @@ public final class UpstreamSinglePlayerApp {
                         } else if (action == UpstreamPauseMenu.Action.LOAD) {
                             closePauseMenu();
                             var loadSector = Vars.state.rules.sector;
-                            session.start(sourceMap, saveFile, campaignSlot == null ? null : "campaign", loadSector);
+                            // Drop UI and player references before decoding the replacement world.
+                            unit = null;
                             resetWorldInput();
+                            Vars.player.clearUnit();
+                            var slotToReload = campaignSlot;
+                            // A failed decode must not let the exit handler overwrite this save.
+                            campaignSlot = null;
+                            session.start(sourceMap, saveFile, slotToReload == null ? null : "campaign", loadSector);
+                            campaignSlot = slotToReload;
                             weatherLayers.reset();
                             reportWeather();
                             uploadMinimap();
