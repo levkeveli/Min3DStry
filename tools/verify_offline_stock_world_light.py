@@ -81,7 +81,7 @@ def verify(rom: Path, azahar: str, output: Path, fixtures: Path, timeout: float)
                               encoding="utf-8")
             proc, rpc = _launch_azahar("new3ds", rom, azahar, config, log)
             try:
-                _wait_for_log(log, proc, r"UPSTREAM_SP_LOADED source=save map=Ground_Zero\b", timeout)
+                _wait_for_log(log, proc, r"UPSTREAM_SP_LOADED source=save map=groundZero size=256x256\b", timeout)
                 _wait_for_log(log, proc, r"UPSTREAM_SP_FRAME ", timeout)
                 expected = None
                 if baseline is not None:
