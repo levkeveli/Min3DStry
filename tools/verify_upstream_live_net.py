@@ -1314,11 +1314,26 @@ def capture_marker_pixels(rpc, output, model, phase, points, timeout, expected=N
     raise RuntimeError(f"{phase} pixels: expected {expected}, got {samples}")
 
 
-# Center of the light and an unlit corner, below the stock objective HUD.
-WORLD_LIGHT_POINTS = ((270, 190), (100, 218))
+# Sample below the HUD and above the chat banner. The marker is 24 world units
+# to the right and 24 below the fixed camera center.
+WORLD_LIGHT_POINTS = ((270, 170), (100, 198))
+WORLD_LIGHT_GLACIER_TILE = (112, 26)
+WORLD_LIGHT_GROUND_ZERO_TILE = (160, 55)
 WORLD_LIGHT_AMBIENT = "223344eb"
 WORLD_LIGHT_RED = "ff000080"
 WORLD_LIGHT_CYAN = "00ffff70"
+
+
+def world_light_terrain(tile_x, tile_y):
+    # Keep the real map and player, but give the light pass an unlit stock stone
+    # reference far outside the friendly core's pulsing light radius.
+    return (
+        f"for(let y={tile_y - 10};y<={tile_y + 10};y++) "
+        f"for(let x={tile_x - 12};x<={tile_x + 12};x++) {{ "
+        "const tile=Vars.world.tile(x,y); "
+        'if(tile == null || tile.build != null) throw "Light reference intersects a building or map edge"; '
+        "tile.setFloor(Blocks.stone); tile.setOverlay(Blocks.air); tile.setBlock(Blocks.air); } "
+    )
 
 
 def world_light_composite(destination, *lights):
@@ -1337,9 +1352,15 @@ def world_light_composite(destination, *lights):
     return tuple(round(before * (1 - overlay) + after * overlay) for before, after in zip(destination, tint))
 
 
-def verify_world_lighting(server_log, server, rpc, output, model, position, timeout):
-    _, _, x, y = position
-    x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
+def verify_world_lighting(log, emulator, server_log, server, rpc, output, model, timeout):
+    tile_x, tile_y = WORLD_LIGHT_GLACIER_TILE
+    x, y = tile_x * 8, tile_y * 8
+    player = 'const p=Groups.player.find(boolf(v=>String(v.name)===' + json.dumps(PLAYER) + ')); '
+    send_marker_phase(server_log, server, "light-position", player +
+        f"p.unit().set({x},{y}); p.set({x},{y}); Call.setPosition(p.con,{x},{y});")
+    wait_for(log, emulator,
+             rf"UPSTREAM_NETWORK_FRAME unit=\d+ left={tile_x - 8} bottom={tile_y - 6}\b", timeout)
+    time.sleep(0.5)  # The viewport marker is emitted before presentation.
 
     def capture(phase, expected=None):
         return capture_marker_pixels(rpc, output, model, f"world-light-{phase}",
@@ -1349,12 +1370,11 @@ def verify_world_lighting(server_log, server, rpc, output, model, position, time
         send_marker_phase(server_log, server, phase,
             f"const rules=Vars.state.rules; rules.lighting={str(enabled).lower()}; "
             f'rules.ambientLight.set(Color.valueOf("{WORLD_LIGHT_AMBIENT}")); '
-            'const p=Groups.player.find(boolf(v=>String(v.name)===' + json.dumps(PLAYER) + ')); '
-            "Call.setRules(p.con,rules);")
+            + player + "Call.setRules(p.con,rules);")
 
     def add_light(phase, ident, rgba):
         send_marker_phase(server_log, server, phase,
-            f'const marker=new MapObjectives.LightMarker({x + 24}, {y - 32}, 5.5, Color.valueOf("{rgba}")); '
+            f'const marker=new MapObjectives.LightMarker({x + 24}, {y - 24}, 5.5, Color.valueOf("{rgba}")); '
             f'Call.createMarker({ident},marker); '
             f'Call.updateMarker({ident},Packages.mindustry.logic.LMarkerControl.light,1,NaN,NaN);')
 
@@ -1801,7 +1821,8 @@ def run_model(args, model, config, original_config, log, output):
                     f"Vars.world.tile({PROCESSOR_CANVAS_COLUMN},32).setBlock(Blocks.worldProcessor,rules.defaultTeam);")
             if args.verify_world_lighting:
                 send_marker_phase(server_log, server, "light-fixture",
-                    "const rules=Vars.state.rules; rules.lighting=false; rules.waveTimer=false; rules.waves=false;")
+                    "const rules=Vars.state.rules; rules.lighting=false; rules.unitLight=false; "
+                    "rules.waveTimer=false; rules.waves=false; " + world_light_terrain(*WORLD_LIGHT_GLACIER_TILE))
             if args.verify_puddles:
                 send_marker_phase(server_log, server, "puddles-clear", PUDDLE_SETUP)
             if args.verify_logic_displays:
@@ -2154,7 +2175,7 @@ def run_model(args, model, config, original_config, log, output):
                         if args.verify_quad_markers:
                             verify_quad_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_world_lighting:
-                            verify_world_lighting(server_log, server, rpc, output, model, spawn, args.timeout)
+                            verify_world_lighting(log, emulator, server_log, server, rpc, output, model, args.timeout)
                         if args.verify_stock_font:
                             wait_for(log, emulator, r"UPSTREAM_RENDER_KEEPALIVE transport=tcp\b", 5)
                         if args.verify_canvas:

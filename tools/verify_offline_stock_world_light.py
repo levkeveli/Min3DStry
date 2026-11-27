@@ -11,8 +11,8 @@ from pathlib import Path
 
 import verify_azahar as az
 from verify_upstream_live_net import (
-    WORLD_LIGHT_AMBIENT, WORLD_LIGHT_POINTS, WORLD_LIGHT_RED,
-    capture_marker_pixels, stop, wait_for, world_light_composite,
+    WORLD_LIGHT_AMBIENT, WORLD_LIGHT_GROUND_ZERO_TILE, WORLD_LIGHT_POINTS, WORLD_LIGHT_RED,
+    capture_marker_pixels, stop, wait_for, world_light_composite, world_light_terrain,
 )
 from verify_upstream_singleplayer import _launch_azahar, _stop_proc, _wait_for_log, stage_direct_startup
 
@@ -33,6 +33,8 @@ def create_fixtures(server: Path, output: Path) -> None:
             )
             try:
                 wait_for(server_log, proc, r"Server loaded\.", 30)
+                tile_x, tile_y = WORLD_LIGHT_GROUND_ZERO_TILE
+                x, y = tile_x * 8, tile_y * 8
                 commands = f"""
                     const sector = Packages.mindustry.content.SectorPresets.groundZero.sector;
                     Vars.logic.reset();
@@ -41,14 +43,19 @@ def create_fixtures(server: Path, output: Path) -> None:
                     const rules = Vars.state.rules;
                     rules.waves = false;
                     rules.waveTimer = false;
-                    const core = rules.defaultTeam.core();
+                    rules.unitLight = false;
+                    {world_light_terrain(tile_x, tile_y)}
+                    const unit = UnitTypes.alpha.create(rules.defaultTeam);
+                    unit.spawnedByCore(true);
+                    unit.set({x}, {y});
+                    unit.add();
                     const save = name => Packages.mindustry.io.SaveIO.write(Packages.arc.files.Fi.get(name + ".msav"));
                     rules.lighting = false;
                     save("clear");
                     rules.ambientLight.set(Color.valueOf("{WORLD_LIGHT_AMBIENT}"));
                     rules.lighting = true;
                     save("ambient");
-                    const marker = new MapObjectives.LightMarker(core.x + 24, core.y - 32, 5.5,
+                    const marker = new MapObjectives.LightMarker({x + 24}, {y - 24}, 5.5,
                         Color.valueOf("{WORLD_LIGHT_RED}"));
                     marker.world = -1;
                     marker.light = 0;
@@ -82,7 +89,9 @@ def verify(rom: Path, azahar: str, output: Path, fixtures: Path, timeout: float)
             proc, rpc = _launch_azahar("new3ds", rom, azahar, config, log)
             try:
                 _wait_for_log(log, proc, r"UPSTREAM_SP_LOADED source=save map=groundZero size=256x256\b", timeout)
-                _wait_for_log(log, proc, r"UPSTREAM_SP_FRAME ", timeout)
+                tile_x, tile_y = WORLD_LIGHT_GROUND_ZERO_TILE
+                viewport = rf"UPSTREAM_SP_FRAME unit=\d+ left={tile_x - 8} bottom={tile_y - 6}\b"
+                _wait_for_log(log, proc, viewport, timeout)
                 expected = None
                 if baseline is not None:
                     light = (WORLD_LIGHT_RED,) if phase == "emitter" else ()
