@@ -1451,7 +1451,8 @@ import port.audio.Arm11Audio;''')
             if (unitType.count(drawBuilding) != 1) {
                 throw new GradleException('Pinned UnitType builder preview changed')
             }
-            unitType = unitType.replace(drawBuilding, '            port.render.UpstreamRemoteBuildPlans.draw(unit);')
+            unitType = unitType.replace('import arc.*;', 'import arc.*;\nimport port.render.UpstreamRemoteBuildPlans;')
+                .replace(drawBuilding, '            UpstreamRemoteBuildPlans.draw(unit);')
             def adaptedUnitType = unitTypeFile.get().asFile
             adaptedUnitType.parentFile.mkdirs()
             adaptedUnitType.setText(unitType.replace(localItems, 'if(renderer != null && Fonts.outline != null && unit.isLocal() && !renderer.pixelate){'), 'UTF-8')
