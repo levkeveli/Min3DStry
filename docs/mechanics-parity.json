@@ -158,7 +158,7 @@
       "domain": "Extraction & Logistics",
       "name": "Liquid Pumps, Conduits, Routers & Bridges",
       "weight": 2,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["probe", "offline", "multiplayer"],
       "issue": 39,
       "evidence": [
@@ -169,9 +169,10 @@
         "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
         "research/upstream-runtime/src/network-render/java/UpstreamBuildingLiquidHud.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
-        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java"
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. The stock Bridge Conduit and Phase Conduit are liquid-category LiquidBridge blocks, covered by the live Category.liquid draw set; the host LIQUID registry renders every liquid block and asserts both categories. The host reference also verifies one-way Bridge Conduit and Phase Conduit transfer, rejects back-linked pairs, dumps a Liquid Router into an adjacent router sink, and checks Liquid Junction far-side/dead-end routing. The stock selected-building dynamic and keyed consumer/generator liquid bars are wired in the offline and live clients from Block.addLiquidBar; their draw is included in the New 3DS acceptance run."
+      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. The stock Bridge Conduit and Phase Conduit are liquid-category LiquidBridge blocks; the host LIQUID registry renders every one of the 21 stock liquid blocks (UPSTREAM_STOCK_LIVE_LIQUID_DRAW tested=21). The host reference verifies one-way Bridge Conduit and Phase Conduit transfer and rejects back-linked pairs (UPSTREAM_LIQUID_BRIDGE_REFERENCE bridgeMilli=100000 phaseMilli=100000 backLink=rejected), dumps a Liquid Router into an adjacent router sink (UPSTREAM_LIQUID_ROUTER_REFERENCE movedMilli=60000 initialMilli=120000 remainingMilli=60000), and checks Liquid Junction far-side/dead-end routing (UPSTREAM_LIQUID_JUNCTION_REFERENCE route=far deadEnd=self). The offline and live replays drew the pumps, conduits, router and both bridge spans on both Azahar profiles from stock saves and the unmodified v160.8 server. The stock selected-building dynamic and keyed consumer/generator liquid bars are wired in the offline and live clients from Block.addLiquidBar; their draw is included in the New 3DS acceptance run. Software complete; only physical-hardware frame-time residue remains (docs/hardware-test-queue.md)."
     },
     {
       "id": "payloads-unit-factories",
@@ -514,14 +515,20 @@
       "domain": "Campaign & Planets",
       "name": "Erekir Content & Mechanics (Ducts, Heat, Neoplasm, Sectors)",
       "weight": 2,
-      "status": "partial-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 41,
       "evidence": [
         "docs/gameplay/offline-singleplayer.md",
-        "research/upstream-runtime/README.md"
+        "research/upstream-runtime/README.md",
+        "research/upstream-runtime/src/gameplay/java/UpstreamErekirDuctProbe.java",
+        "research/upstream-runtime/src/singleplayer-custom-host/java/UpstreamErekirHeatReference.java",
+        "tools/verify_erekir_heat_fixture.py",
+        "tools/verify_upstream_campaign_globe.py",
+        "tools/verify_stock_campaign_archive.py",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "The original Onset campaign starts and saves offline; the live client joins stock Erekir maps and supports original build controls. Complete heat, neoplasm and Erekir campaign coverage remain open."
+      "notes": "The original Onset campaign starts and saves offline, the live client joins stock Erekir maps with original build controls, and the v160.8 server reopened the ARM11 saves. The duct family is now host-verified inside the port tick loop: the stock duct, armored duct, duct router, duct unloader, duct bridge and overflow/underflow polarity run on the original onset map and move items at the pinned rate (UPSTREAM_EREKIR_DUCTS duct=4 armored=4 unloader=4 router=4 arrival=10 delivered=20 armoredArrival=10 armoredDelivered=8 bridge=duct-bridge overflow=normal underflow=inverted sort=copper routerDelivered=1). Heat, neoplasm and the Erekir production chain are verified by the stock-Java fixture and the same offline tick loop (UPSTREAM_EREKIR_HEAT reactor=60 redirector=36 crucible=36, UPSTREAM_EREKIR_HEAT_ROTATION isolated=ok restored=ok, UPSTREAM_EREKIR_HEAT_WATER starved=ok recovered=ok, UPSTREAM_EREKIR_NEOPLASM_OVERFLOW pressure=1), including the cold/active heat sprite layers, save/readback and the original pressure event. Erekir sectors are covered by the stock campaign archive (erekir=17) and the globe/launch replay. Erekir payload drawing stays tracked by payloads-unit-factories."
     },
     {
       "id": "audio-trigger-catalog",
