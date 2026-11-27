@@ -104,6 +104,13 @@ original server's first state snapshot, and sends a chat message through the
 stock handler. It requests a live snapshot of the player's core over UDP and
 reads the reply using the original Java client handler. The replay repeats
 these checks after disconnecting and rejoining with the same stock identity.
+The graphical Java v160.8 client joined the emulated Ground Zero host and
+mined copper. The host exited with a null reference after the remote
+client queued a conveyor. The pinned BuilderComp preview uses the desktop
+input handler. The handheld adapter uses the remote builder's plans for
+the stock block preview and keeps the stock build beam. The graphical
+placement replay still needs to pass with this adapter.
+
 The reference client loaded Glacier, received its chat echo, and read its
 Core Nucleus snapshot from the stock Java server. The native replay and
 desktop gameplay checks are pending.

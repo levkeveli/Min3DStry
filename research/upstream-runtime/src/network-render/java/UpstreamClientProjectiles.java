@@ -18,6 +18,7 @@ final class UpstreamClientProjectiles {
         }
         Groups.bullet.update();
         Groups.bullet.collide();
+        UpstreamClientStatus.update();
     }
 
     static int draw(UpstreamTerrainDrawProbe.Viewport viewport) {

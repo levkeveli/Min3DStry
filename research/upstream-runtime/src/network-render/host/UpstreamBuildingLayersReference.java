@@ -21,6 +21,7 @@ import arc.graphics.g2d.SpriteBatch;
 import arc.graphics.g2d.TextureAtlas.AtlasRegion;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData;
 import arc.graphics.g2d.TextureRegion;
+import arc.math.geom.Vec2;
 import arc.mock.MockAudio;
 import arc.mock.MockGraphics;
 import arc.struct.Seq;
@@ -41,10 +42,18 @@ import mindustry.Vars;
 import mindustry.ui.Fonts;
 import mindustry.ai.BlockIndexer;
 import mindustry.content.Blocks;
+import mindustry.content.Fx;
 import mindustry.content.Items;
+import mindustry.content.StatusEffects;
 import mindustry.content.Liquids;
 import mindustry.content.UnitTypes;
 import mindustry.ctype.ContentType;
+import mindustry.entities.bullet.BulletType;
+import mindustry.entities.bullet.ContinuousLaserBulletType;
+import mindustry.entities.bullet.LaserBoltBulletType;
+import mindustry.entities.bullet.LaserBulletType;
+import mindustry.entities.bullet.PointLaserBulletType;
+import mindustry.entities.bullet.ShrapnelBulletType;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Builderc;
 import mindustry.gen.Building;
@@ -53,6 +62,7 @@ import mindustry.gen.Payloadc;
 import mindustry.gen.BlockUnitc;
 import mindustry.gen.Crawlc;
 import mindustry.gen.DisplayCmd;
+import mindustry.gen.EffectCallPacket;
 import mindustry.gen.Player;
 import mindustry.gen.Tankc;
 import mindustry.gen.UnitWaterMove;
@@ -73,6 +83,11 @@ import mindustry.world.Block;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
+import mindustry.world.blocks.defense.turrets.ContinuousTurret;
+import mindustry.world.blocks.defense.turrets.ItemTurret;
+import mindustry.world.blocks.defense.turrets.LiquidTurret;
+import mindustry.world.blocks.defense.turrets.PayloadAmmoTurret;
+import mindustry.world.blocks.defense.turrets.PowerTurret;
 import mindustry.world.blocks.defense.turrets.ReloadTurret;
 import mindustry.world.blocks.power.LightBlock;
 import mindustry.world.blocks.production.BeamDrill;
@@ -168,6 +183,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyArcOrder();
         target.verifyTexturedLine();
         target.verifyFactory(viewport);
+        target.verifyRemoteBuildPreview();
 
         // The visible two-tile wall starts one tile west of the viewport.
         viewport.moveTo(24, 30);
@@ -225,6 +241,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyErekirStarterBlocks(layers, viewport, viewer);
         target.verifyExtractorDraws(layers, viewport, viewer);
         target.verifyLiveBuildingRegistry(layers, viewport, viewer, block -> block instanceof BaseTurret, "TURRET");
+        target.verifyTurretBarrel(layers, viewport, viewer);
         // The stock Liquid Bridge is liquid-category, so the live predicate's
         // Category.liquid branch must keep both bridge blocks drawable.
         if (Blocks.bridgeConduit.category != Category.liquid
@@ -254,12 +271,35 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (args.length >= 5) verifyClientProcessor(new Fi(args[4]), viewer);
         if (args.length == 7) target.verifyLogicDisplay(new Fi(args[5]), new Fi(args[6]), viewer);
         target.verifyUnitProjectiles(viewport, viewer);
+        target.verifyClientEffects(viewport);
+        target.verifyTurretBeamBullets(viewport, viewer);
+        target.verifyClientStatus(viewer);
         verifyPositionalAudioDispatch();
         Arm11AudioReference.verifyStockRegistry();
         UpstreamPuddleReference.verify();
         UpstreamWeatherLayersReference.verify();
     }
 
+    private void verifyRemoteBuildPreview() {
+        var team = Vars.state.rules.defaultTeam;
+        var core = team.core();
+        var tile = Vars.world.tile(core.tileX() - 5, core.tileY());
+        var unit = UnitTypes.alpha.create(team);
+        unit.set(tile.worldx(), tile.worldy() - 24f);
+        unit.addBuild(new mindustry.entities.units.BuildPlan(tile.x, tile.y, 0, Blocks.conveyor));
+        unit.updateBuilding(true);
+        sprites.clear();
+        try {
+            if (unit.isLocal() || !unit.activelyBuilding()) throw new AssertionError("Expected an active remote builder");
+            port.render.UpstreamRemoteBuildPlans.draw(unit);
+            if (firstAt(tile.worldx(), tile.worldy()) < 0 || sprites.size() < 4) {
+                throw new AssertionError("The remote builder did not submit its conveyor preview and build beam");
+            }
+            System.out.println("UPSTREAM_REMOTE_BUILD_PREVIEW stock-conveyor=ok build-beam=ok");
+        } finally {
+            Draw.reset();
+        }
+    }
     private static void verifyPositionalAudioDispatch() {
         Core.audio = new MockAudio() {
             @Override public boolean initialized() { return true; }
@@ -336,6 +376,151 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         System.out.println("UPSTREAM_ORIGINAL_PROJECTILES gamma=burst dagger=remote atlas=ok trail=ok release=ok");
     }
 
+    private void verifyClientEffects(UpstreamTerrainDrawProbe.Viewport viewport) {
+        Vars.net.setClientConnected();
+        UpstreamClientEffects.load();
+        viewport.moveTo(73, 20);
+        UpstreamClientEffects.follow(viewport);
+        Groups.effect.clear();
+        var lightning = Seq.with(new Vec2(600f, 200f), new Vec2(624f, 208f), new Vec2(640f, 196f));
+        Fx.lightning.at(600f, 200f, 0f, Color.white, lightning);
+        Fx.explosion.at(632f, 200f);
+        if (Groups.effect.size() < 2) {
+            throw new AssertionError("Stock effects did not enter Groups.effect: " + Groups.effect.size());
+        }
+        float oldDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            UpstreamClientEffects.update();
+            UpstreamClientEffects.update();
+            sprites.clear();
+            solidQuads.clear();
+            int drawn = UpstreamClientEffects.draw(viewport);
+            if (drawn < 2 || (sprites.isEmpty() && solidQuads.isEmpty())) {
+                throw new AssertionError("Stock effects did not draw: drawn=" + drawn
+                    + " sprites=" + sprites.size() + " quads=" + solidQuads.size());
+            }
+            var packet = new EffectCallPacket();
+            packet.effect = Fx.explosion;
+            packet.x = 648f;
+            packet.y = 200f;
+            packet.rotation = 0f;
+            packet.color = Color.white;
+            int before = Groups.effect.size();
+            packet.handleClient();
+            if (Groups.effect.size() <= before) {
+                throw new AssertionError("Stock EffectCallPacket did not create a client effect");
+            }
+            for (int i = 0; i < 200; i++) {
+                Time.delta = 1f;
+                UpstreamClientEffects.update();
+            }
+            if (!Groups.effect.isEmpty()) {
+                throw new AssertionError("Stock effects did not expire: " + Groups.effect.size());
+            }
+            System.out.println("UPSTREAM_CLIENT_EFFECTS lightning=arc explosion=impact draw=" + drawn
+                + " packet=ok cleanup=ok");
+        } finally {
+            Time.delta = oldDelta;
+            Groups.effect.clear();
+        }
+    }
+
+    private void verifyTurretBeamBullets(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer) {
+        viewport.moveTo(73, 20);
+        UpstreamClientEffects.follow(viewport);
+        var owner = UnitTypes.dagger.spawn(viewer, 600f, 200f, 0f);
+        float oldDelta = Time.delta;
+        var tested = new StringBuilder();
+        try {
+            Time.delta = 1f;
+            var candidates = new java.util.LinkedHashSet<BulletType>();
+            for (var block : Vars.content.blocks()) {
+                if (block instanceof PowerTurret turret && turret.shootType != null) {
+                    candidates.add(turret.shootType);
+                }
+                if (block instanceof ContinuousTurret turret && turret.shootType != null) {
+                    candidates.add(turret.shootType);
+                }
+                if (block instanceof ItemTurret turret) {
+                    for (var bullet : turret.ammoTypes.values()) if (bullet != null) candidates.add(bullet);
+                }
+                if (block instanceof LiquidTurret turret) {
+                    for (var bullet : turret.ammoTypes.values()) if (bullet != null) candidates.add(bullet);
+                }
+                if (block instanceof PayloadAmmoTurret turret) {
+                    for (var bullet : turret.ammoTypes.values()) if (bullet != null) candidates.add(bullet);
+                }
+            }
+            for (var type : candidates) {
+                String kind = type instanceof LaserBulletType ? "laser"
+                    : type instanceof LaserBoltBulletType ? "laserbolt"
+                    : type instanceof ContinuousLaserBulletType ? "continuous"
+                    : type instanceof ShrapnelBulletType ? "shrapnel"
+                    : type instanceof PointLaserBulletType ? "pointlaser" : null;
+                if (kind == null) continue;
+                Groups.bullet.clear();
+                var bullet = type.create(owner, viewer, 600f, 200f, 0f);
+                if (bullet == null) {
+                    throw new AssertionError("Stock " + kind + " bullet did not create: "
+                        + type.getClass().getName());
+                }
+                UpstreamClientProjectiles.update();
+                sprites.clear();
+                solidQuads.clear();
+                int drawn = UpstreamClientProjectiles.draw(viewport);
+                if (drawn < 1 || (sprites.isEmpty() && solidQuads.isEmpty())) {
+                    throw new AssertionError("Stock " + kind + " bullet did not draw: "
+                        + type.getClass().getName() + " drawn=" + drawn
+                        + " sprites=" + sprites.size() + " quads=" + solidQuads.size());
+                }
+                tested.append(tested.length() == 0 ? "" : ",").append(kind);
+            }
+        } finally {
+            Time.delta = oldDelta;
+            Groups.bullet.clear();
+        }
+        if (tested.length() == 0) throw new AssertionError("No stock turret beam bullet types were verified");
+        System.out.println("UPSTREAM_TURRET_BEAMS tested=" + tested);
+    }
+    private void verifyClientStatus(Team viewer) {
+        var unit = UnitTypes.dagger.spawn(viewer, 600f, 200f, 0f);
+        unit.apply(StatusEffects.burning, 10f);
+        if (!unit.hasEffect(StatusEffects.burning)) {
+            throw new AssertionError("Stock burning status was not applied");
+        }
+        float oldDelta = Time.delta;
+        float oldChance = StatusEffects.burning.effectChance;
+        try {
+            Time.delta = 1f;
+            StatusEffects.burning.effectChance = 1000f;
+            Groups.effect.clear();
+            UpstreamClientStatus.update();
+            if (Groups.effect.isEmpty()) {
+                throw new AssertionError("Stock status Fx did not spawn");
+            }
+            StatusEffects.burning.effectChance = oldChance;
+            for (int i = 0; i < 3; i++) UpstreamClientStatus.update();
+            float remaining = unit.getDuration(StatusEffects.burning);
+            if (!unit.hasEffect(StatusEffects.burning) || remaining > 6.5f || remaining < 5.5f) {
+                throw new AssertionError("Stock status timer did not advance: " + remaining);
+            }
+            for (int i = 0; i < 10; i++) UpstreamClientStatus.update();
+            if (unit.hasEffect(StatusEffects.burning)) {
+                throw new AssertionError("Stock status did not expire");
+            }
+            unit.apply(StatusEffects.boss, 5f);
+            for (int i = 0; i < 10; i++) UpstreamClientStatus.update();
+            if (!unit.hasEffect(StatusEffects.boss)) {
+                throw new AssertionError("Permanent stock status was removed");
+            }
+            unit.setDuration(StatusEffects.boss, 0f);
+        } finally {
+            Time.delta = oldDelta;
+            StatusEffects.burning.effectChance = oldChance;
+        }
+        System.out.println("UPSTREAM_CLIENT_STATUS tick=stock expire=burning permanent=boss fx=ok");
+    }
 
     private void verifyFactory(UpstreamTerrainDrawProbe.Viewport viewport) {
         for (var block : Vars.content.blocks()) {
@@ -1076,7 +1261,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             if (cargo.unit.isAdded() || cargo.unit.type() != type || cargo.unit.team() != team
                     || cargo.unit.elevation() != original.elevation() || cargo.rotation() != 90f
                     || Math.abs(cargo.x() - belt.x) > 0.001f || Math.abs(cargo.y() - belt.y + 6f) > 0.001f) {
-                throw new AssertionError("Stock unit payload state differed for " + type.name);
+                throw new AssertionError("Stock unit payload state differed for " + type.getClass().getSimpleName());
             }
             requireRegion(type.region);
             requireRegion(type.cellRegion);
@@ -1107,7 +1292,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             // Stock BlockUnit proxies belong to buildings and cannot be added to Groups.unit.
             if (type.sample instanceof BlockUnitc) continue;
             if (!UpstreamRenderedNetworkProbe.loadUnitGraphics(type)) {
-                throw new AssertionError("Could not load stock unit " + type.name);
+                throw new AssertionError("Could not load stock unit " + type.getClass().getSimpleName());
             }
             var unit = type.spawn(Team.crux, 300f, 288f, 90f);
             for (var mount : unit.mounts) mount.heat = 1f;
@@ -1237,7 +1422,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             UpstreamRenderedNetworkProbe.advanceTankTreads(tank);
             UpstreamRenderedNetworkProbe.advanceTankTreads(tank);
             if (tank.treadTime() != 5f || unit.x != 243f || unit.y != 292f) {
-                throw new AssertionError("Unexpected stock tread distance for " + type.name);
+                throw new AssertionError("Unexpected stock tread distance for " + type.getClass().getSimpleName());
             }
             sprites.clear();
             Draw.sort(true);
@@ -1246,7 +1431,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             for (var strip : type.treadRegions) {
                 var expected = strip[5 % type.treadFrames];
                 if (sprites.stream().filter(sprite -> matchesRegion(sprite, expected)).count() != 2) {
-                    throw new AssertionError("Missing both stock tread sides for " + type.name);
+                    throw new AssertionError("Missing both stock tread sides for " + type.getClass().getSimpleName());
                 }
             }
             unit.remove();
@@ -1528,6 +1713,60 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         sourceTile.setBlock(Blocks.air);
         targetTile.setBlock(Blocks.air);
         return moved;
+    }
+
+    private void verifyTurretBarrel(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                                    Team viewer) {
+        var tile = Vars.world.tile(35, 36);
+        tile.setBlock(Blocks.duo, viewer, 0);
+        var duo = tile.build;
+        var turret = (BaseTurret.BaseTurretBuild)duo;
+        turret.rotation = 37f;
+        sprites.clear();
+        duo.block.drawBase(duo.tile);
+        int baseCount = sprites.size();
+        sprites.clear();
+        layers.render(viewport, viewer, build -> build == duo);
+        if (sprites.size() <= baseCount) {
+            throw new AssertionError("Stock turret draw is missing its barrel: " + baseCount + " -> " + sprites.size());
+        }
+        var left = Core.atlas.find("duo-barrel-l");
+        var right = Core.atlas.find("duo-barrel-r");
+        requireRegion(left);
+        requireRegion(right);
+        boolean barrel = sprites.stream().anyMatch(sprite ->
+            (matchesRegion(sprite, left) || matchesRegion(sprite, right))
+                && Math.abs(sprite.rotation() - (37f - 90f)) < 0.01f);
+        if (!barrel) {
+            throw new AssertionError("Stock turret draw is missing the rotated duo barrels");
+        }
+
+        var heatTile = Vars.world.tile(38, 36);
+        heatTile.setBlock(Blocks.lancer, viewer, 0);
+        var lancer = (mindustry.world.blocks.defense.turrets.Turret.TurretBuild)heatTile.build;
+        lancer.rotation = 0f;
+        lancer.heat = 1f;
+        sprites.clear();
+        layers.render(viewport, viewer, build -> build == lancer);
+        if (sprites.stream().noneMatch(sprite -> sprite.blending() == Blending.additive)) {
+            throw new AssertionError("Stock turret draw is missing the heat layer");
+        }
+        lancer.heat = 0f;
+        heatTile.setBlock(Blocks.air);
+
+        turret.liquids.clear();
+        texturedQuads = 0;
+        layers.render(viewport, viewer, build -> build == duo);
+        int dryQuads = texturedQuads;
+        turret.liquids.set(Liquids.water, 1f);
+        texturedQuads = 0;
+        layers.render(viewport, viewer, build -> build == duo);
+        boolean liquidDrawn = texturedQuads > dryQuads;
+        turret.liquids.clear();
+
+        tile.setBlock(Blocks.air);
+        System.out.println("UPSTREAM_TURRET_DRAW base=" + baseCount + " draw=" + sprites.size()
+            + " barrels=l,r heat=ok liquid=" + (liquidDrawn ? "ok" : "no-region") + " rotation=37");
     }
 
     private void verifyDynamicLight(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,

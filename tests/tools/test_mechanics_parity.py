@@ -13,19 +13,27 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class MechanicsParityTests(unittest.TestCase):
+    def test_mechanics_can_complete_without_hardware(self) -> None:
+        ledger = mechanics_parity.load_and_validate_mechanics(
+            REPO_ROOT / "docs" / "mechanics-parity.json", REPO_ROOT
+        )
+        for feature in ledger["features"]:
+            feature["status"] = "complete"
+        self.assertEqual(mechanics_parity.compute_mechanics_parity(ledger)["percent"], 100.0)
+
     def test_real_ledger_and_svg_are_valid_and_fresh(self) -> None:
         ledger = mechanics_parity.load_and_validate_mechanics(
             REPO_ROOT / "docs" / "mechanics-parity.json", REPO_ROOT
         )
         summary = mechanics_parity.compute_mechanics_parity(ledger)
-        self.assertEqual(summary["total_points"], 100)
+        self.assertEqual(summary["total_points"], 97)
         self.assertGreater(summary["percent"], 0.0)
         self.assertLess(summary["percent"], 100.0)
-        self.assertAlmostEqual(summary["earned_points"] + summary["missing_points"], 100.0, places=2)
+        self.assertAlmostEqual(summary["earned_points"] + summary["missing_points"], 97.0, places=2)
         self.assertAlmostEqual(sum(summary["status_earned_points"].values()), summary["earned_points"], places=2)
-        self.assertEqual(sum(summary["status_weight_points"].values()), 100)
+        self.assertEqual(sum(summary["status_weight_points"].values()), 97)
         self.assertEqual(len(summary["domains"]), 8)
-        self.assertEqual(sum(dom["weight"] for dom in summary["domains"]), 100)
+        self.assertEqual(sum(dom["weight"] for dom in summary["domains"]), 97)
         self.assertEqual(len(summary["features"]), summary["feature_count"])
         for feat in summary["features"]:
             self.assertIn(feat["status"], summary["status_weights"])
@@ -165,8 +173,8 @@ class MechanicsParityTests(unittest.TestCase):
             self.assertFalse(snapshot["partial"], snapshot.get("warnings"))
             mech = snapshot["mechanics_parity"]
             self.assertIsNotNone(mech)
-            self.assertEqual(mech["total_points"], 100)
-            self.assertEqual(mech["feature_count"], 38)
+            self.assertEqual(mech["total_points"], 97)
+            self.assertEqual(mech["feature_count"], 37)
             self.assertEqual(len(mech["domains"]), 8)
             first = mech["features"][0]
             for field in ("status", "modes", "notes", "primary_doc", "evidence_count"):

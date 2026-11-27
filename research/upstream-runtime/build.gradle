@@ -170,6 +170,9 @@ if (usesWorldSources) {
     pluginsToLoad.add('port.WorldProbeSupport')
 }
 def referenceJar = file(providers.gradleProperty('referenceJar').getOrElse('server-release.jar'))
+def glacierPath = providers.gradleProperty('glacier').getOrElse('')
+def atlasPath = providers.gradleProperty('atlas').getOrElse('')
+def colorsPath = providers.gradleProperty('colors').getOrElse('')
 def sourceDir = layout.buildDirectory.dir("upstream-src/${probe}")
 def sourceFile = sourceDir.map { it.file('mindustry/logic/LogicOp.java') }
 def mapFile = sourceDir.map { it.file('mindustry/maps/GlacierFixture.java') }
@@ -203,7 +206,8 @@ def logicDisplaySources = [
 ]
 def shieldModeSources = [
     'mindustry/graphics/Drawf.java': 'renderer',
-    'mindustry/entities/abilities/ForceFieldAbility.java': 'Vars.renderer'
+    'mindustry/entities/abilities/ForceFieldAbility.java': 'Vars.renderer',
+    'mindustry/entities/abilities/ShieldArcAbility.java': 'Vars.renderer'
 ]
 def compilerResources = layout.buildDirectory.dir("compiler-resources/${probe}")
 def pluginFile = compilerResources.map { it.file('META-INF/services/org.teavm.vm.spi.TeaVMPlugin') }
@@ -298,6 +302,11 @@ if (usesArcSources || usesExecutor) {
         stagedClasses.addAll(['mindustry/type/Weather.class', 'mindustry/type/Weather$*.class',
                               'mindustry/type/weather/ParticleWeather.class'])
     }
+    if (probe in ['network-render', 'unified']) {
+        // The port renders without the desktop Renderer, so the stock effect gate
+        // consults UpstreamEffectGate instead of Vars.renderer.enableEffects.
+        stagedClasses.addAll(['mindustry/entities/Effect.class', 'mindustry/entities/Effect$*.class'])
+    }
     if (usesLiveAudio) {
         stagedClasses.addAll(['arc/audio/Sound.class', 'arc/audio/Sound$*.class',
                               'mindustry/audio/SoundControl.class', 'mindustry/audio/SoundControl$*.class',
@@ -390,6 +399,18 @@ if (usesTerrainRenderer) {
 }
 if (usesSimulation) {
     sourceSets.main.java.srcDir('src/gameplay/java')
+    tasks.register('runLogisticsJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamLogisticsProbe'
+        if (!glacierPath.isEmpty()) args glacierPath
+    }
+    tasks.register('runCrafterRecipesJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamCrafterRecipesProbe'
+        if (!glacierPath.isEmpty()) args glacierPath
+    }
 }
 if (probe == 'world-stream') {
     sourceSets.main.java.srcDir('src/world-stream/java')
@@ -418,6 +439,36 @@ if (probe in ['network-render', 'unified']) {
         dependsOn 'classes'
         classpath = sourceSets.main.runtimeClasspath
         mainClass = 'UpstreamObjectiveMarkersReference'
+    }
+    tasks.register('runLightLineJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamLightLineReference'
+        if (!glacierPath.isEmpty() && !atlasPath.isEmpty() && !colorsPath.isEmpty()) {
+            args glacierPath, atlasPath, colorsPath
+        }
+    }
+    tasks.register('runCameraZoomJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamCameraZoomReference'
+        if (!glacierPath.isEmpty()) args glacierPath
+    }
+    tasks.register('runTurretRecoilJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamTurretRecoilReference'
+        if (!glacierPath.isEmpty() && !atlasPath.isEmpty() && !colorsPath.isEmpty()) {
+            args glacierPath, atlasPath, colorsPath
+        }
+    }
+    tasks.register('runUnitShieldJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamUnitShieldReference'
+        if (!glacierPath.isEmpty() && !atlasPath.isEmpty() && !colorsPath.isEmpty()) {
+            args glacierPath, atlasPath, colorsPath
+        }
     }
 }
 if (usesSinglePlayer) {
@@ -644,6 +695,9 @@ tasks.register('prepareUpstreamProbe') {
     if (probe == 'unified') {
         outputs.file(netServerFile)
     }
+    if (probe in ['network-render', 'unified']) {
+        outputs.file(sourceDir.map { it.file('mindustry/entities/Effect.java') })
+    }
     if (usesLiveAudio) {
         outputs.files(sourceDir.map { dir ->
             ['arc/audio/Sound.java', 'mindustry/audio/SoundControl.java']
@@ -685,6 +739,22 @@ tasks.register('prepareUpstreamProbe') {
         outputs.file(globalVarsFile)
     }
     doLast {
+        if (probe in ['network-render', 'unified']) {
+            def effectPath = 'mindustry/entities/Effect.java'
+            def effectSource = new String(readUpstream("core/src/${effectPath}"), 'UTF-8')
+            def shouldCreate = 'return !headless && this != Fx.none && Vars.renderer.enableEffects;'
+            if (effectSource.count(shouldCreate) != 1) {
+                throw new GradleException('Pinned Effect.shouldCreate gate changed')
+            }
+            effectSource = effectSource.replace(shouldCreate,
+                'return this != Fx.none && (UpstreamEffectGate.enabled() || (!headless && Vars.renderer != null && Vars.renderer.enableEffects));')
+            def effectImports = effectSource.indexOf('import ')
+            effectSource = effectSource.substring(0, effectImports) +
+                'import port.render.UpstreamEffectGate;\n' + effectSource.substring(effectImports)
+            def effectTarget = sourceDir.get().file(effectPath).asFile
+            effectTarget.parentFile.mkdirs()
+            effectTarget.setText(effectSource, 'UTF-8')
+        }
         if (usesSinglePlayerApp) {
             databaseAbilitySources.each { path ->
                 def staged = sourceDir.get().file(path).asFile
@@ -1377,19 +1447,28 @@ import port.audio.Arm11Audio;''')
             if (unitType.count(localItems) != 1) {
                 throw new GradleException('Pinned UnitType item label check changed')
             }
+            def drawBuilding = '            unit.drawBuilding();'
+            if (unitType.count(drawBuilding) != 1) {
+                throw new GradleException('Pinned UnitType builder preview changed')
+            }
+            unitType = unitType.replace(drawBuilding, '            port.render.UpstreamRemoteBuildPlans.draw(unit);')
             def adaptedUnitType = unitTypeFile.get().asFile
             adaptedUnitType.parentFile.mkdirs()
             adaptedUnitType.setText(unitType.replace(localItems, 'if(renderer != null && Fonts.outline != null && unit.isLocal() && !renderer.pixelate){'), 'UTF-8')
             shieldModeSources.each { path, renderer ->
                 def source = new String(readUpstream("core/src/${path}"), 'UTF-8')
                 def animated = "if(${renderer}.animateShields){"
-                if (source.count(animated) != 1) {
+                def negated = "if(!${renderer}.animateShields){"
+                if (source.count(animated) == 1) {
+                    // Use the existing unshaded geometry when the desktop renderer is absent.
+                    source = source.replace(animated, "if(${renderer} != null && ${renderer}.animateShields){")
+                } else if (source.count(negated) == 1) {
+                    source = source.replace(negated, "if(${renderer} == null || !${renderer}.animateShields){")
+                } else {
                     throw new GradleException("Pinned shield rendering mode check changed in ${path}")
                 }
                 def output = sourceDir.get().file(path).asFile
                 output.parentFile.mkdirs()
-                // Use the existing unshaded geometry when the desktop renderer is absent.
-                source = source.replace(animated, "if(${renderer} != null && ${renderer}.animateShields){")
                 if (path == 'mindustry/graphics/Drawf.java') {
                     def radialLight = '''        if(renderer == null) return;
         renderer.lights.add(x, y, radius, color, opacity);'''
@@ -1405,6 +1484,33 @@ import port.audio.Arm11Audio;''')
         }
         renderer.lights.add(x, y, radius, color, opacity);''')
                     source = source.replace(positionLight, '        light(pos.getX(), pos.getY(), radius, color, opacity);')
+                    def lineLightDefault = '''        if(renderer == null) return;
+        renderer.lights.line(x, y, x2, y2, 30, Color.orange, 0.3f);'''
+                    def lineLightCustom = '''        if(renderer == null) return;
+        renderer.lights.line(x, y, x2, y2, stroke, tint, alpha);'''
+                    if (source.count(lineLightDefault) != 1 || source.count(lineLightCustom) != 1) {
+                        throw new GradleException('Pinned line light entry points changed')
+                    }
+                    source = source.replace(lineLightDefault, '''        if(renderer == null){
+            UpstreamBuildingLights.line(x, y, x2, y2, 30, Color.orange, 0.3f);
+            return;
+        }
+        renderer.lights.line(x, y, x2, y2, 30, Color.orange, 0.3f);''')
+                    source = source.replace(lineLightCustom, '''        if(renderer == null){
+            UpstreamBuildingLights.line(x, y, x2, y2, stroke, tint, alpha);
+            return;
+        }
+        renderer.lights.line(x, y, x2, y2, stroke, tint, alpha);''')
+                    def texturedLight = '''        if(renderer == null) return;
+        renderer.lights.add(x, y, region, rotation, color, opacity);'''
+                    if (source.count(texturedLight) != 1) {
+                        throw new GradleException('Pinned textured light entry point changed')
+                    }
+                    source = source.replace(texturedLight, '''        if(renderer == null){
+            UpstreamBuildingLights.textured(x, y, region, rotation, color, opacity);
+            return;
+        }
+        renderer.lights.add(x, y, region, rotation, color, opacity);''')
                     def stockUniforms = '''        Shaders.build.region = region;
         Shaders.build.progress = progress;
         Shaders.build.color.set(color);
@@ -1819,6 +1925,27 @@ ${barOracle}""")
 
                 def indexerPath = 'mindustry/ai/BlockIndexer.java'
                 def indexer = new String(readUpstream('core/src/' + indexerPath), 'UTF-8')
+                def worldLoaded = '        Events.on(WorldLoadEvent.class, event -> {'
+                if (indexer.count(worldLoaded) != 1) throw new GradleException('Pinned BlockIndexer world load changed')
+                indexer = indexer.replace(worldLoaded, '''        Events.on(ResetEvent.class, event -> {
+            // WorldLoadEvent rebuilds these indexes after decode. Drop their old world references before it.
+            for(var flags : flagMap){
+                for(var buildings : flags){
+                    if(buildings != null) buildings.clear();
+                }
+            }
+            for(var buildings : damagedTiles){
+                if(buildings != null) buildings.clear();
+            }
+            if(floorMap != null){
+                for(var floors : floorMap){
+                    if(floors != null) floors.clear();
+                }
+            }
+            breturnArray.clear();
+        });
+
+''' + worldLoaded)
                 def oreStorage = 'private IntSeq[][][] ores, wallOres;'
                 def oreRead = 'world.tile(arr.first())'
                 def oreLookup = '''                for(int qy = 0; qy < quadHeight; qy++){

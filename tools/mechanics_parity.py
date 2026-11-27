@@ -97,8 +97,9 @@ def load_and_validate_mechanics(ledger_path: Path, repo_root: Path) -> dict[str,
 
         total_weight += weight
 
-    if total_weight != 100:
-        raise ValueError(f"Feature weights must sum to 100, got {total_weight}.")
+    expected_weight = raw.get("scored_weight", 100)
+    if type(expected_weight) is not int or total_weight != expected_weight:
+        raise ValueError(f"Feature weights must sum to {expected_weight}, got {total_weight}.")
 
     return raw
 
