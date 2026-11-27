@@ -66,6 +66,23 @@ UPSTREAM_CLIENT_EFFECTS lightning=arc explosion=impact draw=2 packet=ok cleanup=
 UPSTREAM_TURRET_BEAMS tested=laser,shrapnel,shrapnel,continuous,pointlaser
 ```
 
+## Client status timers
+
+Client bullet hits apply the stock bullet status through `BulletType.hit`.
+Because the port does not run the stock unit simulation, `UpstreamClientStatus`
+advances those timers with the public `Statusc` API: it applies the current
+floor status while grounded, decrements non-permanent durations, rebuilds the
+applied bits, and keeps permanent/dynamic effects. Periodic
+`StatusEffect.update` damage and its Fx remain server-authoritative and are not
+simulated on the client.
+
+The host reference applies `burning` for ten ticks, advances four ticks, checks
+the remaining duration, expires it, and confirms the permanent `boss` effect is
+retained:
+
+```text
+UPSTREAM_CLIENT_STATUS tick=stock expire=burning permanent=boss
+```
 
 ## Live projectile drawing
 

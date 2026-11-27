@@ -44,6 +44,7 @@ import mindustry.ai.BlockIndexer;
 import mindustry.content.Blocks;
 import mindustry.content.Fx;
 import mindustry.content.Items;
+import mindustry.content.StatusEffects;
 import mindustry.content.Liquids;
 import mindustry.content.UnitTypes;
 import mindustry.ctype.ContentType;
@@ -271,6 +272,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyUnitProjectiles(viewport, viewer);
         target.verifyClientEffects(viewport);
         target.verifyTurretBeamBullets(viewport, viewer);
+        target.verifyClientStatus(viewer);
         verifyPositionalAudioDispatch();
         Arm11AudioReference.verifyStockRegistry();
         UpstreamPuddleReference.verify();
@@ -460,6 +462,36 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (tested.length() == 0) throw new AssertionError("No stock turret beam bullet types were verified");
         System.out.println("UPSTREAM_TURRET_BEAMS tested=" + tested);
     }
+    private void verifyClientStatus(Team viewer) {
+        var unit = UnitTypes.dagger.spawn(viewer, 600f, 200f, 0f);
+        unit.apply(StatusEffects.burning, 10f);
+        if (!unit.hasEffect(StatusEffects.burning)) {
+            throw new AssertionError("Stock burning status was not applied");
+        }
+        float oldDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            for (int i = 0; i < 4; i++) UpstreamClientStatus.update();
+            float remaining = unit.getDuration(StatusEffects.burning);
+            if (!unit.hasEffect(StatusEffects.burning) || remaining > 6.5f || remaining < 5.5f) {
+                throw new AssertionError("Stock status timer did not advance: " + remaining);
+            }
+            for (int i = 0; i < 10; i++) UpstreamClientStatus.update();
+            if (unit.hasEffect(StatusEffects.burning)) {
+                throw new AssertionError("Stock status did not expire");
+            }
+            unit.apply(StatusEffects.boss, 5f);
+            for (int i = 0; i < 10; i++) UpstreamClientStatus.update();
+            if (!unit.hasEffect(StatusEffects.boss)) {
+                throw new AssertionError("Permanent stock status was removed");
+            }
+            unit.setDuration(StatusEffects.boss, 0f);
+        } finally {
+            Time.delta = oldDelta;
+        }
+        System.out.println("UPSTREAM_CLIENT_STATUS tick=stock expire=burning permanent=boss");
+    }
+
     private void verifyFactory(UpstreamTerrainDrawProbe.Viewport viewport) {
         for (var block : Vars.content.blocks()) {
             if (!(block instanceof UnitFactory factory)) continue;
