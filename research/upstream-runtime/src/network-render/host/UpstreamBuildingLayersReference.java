@@ -44,6 +44,7 @@ import mindustry.ai.BlockIndexer;
 import mindustry.content.Blocks;
 import mindustry.content.Fx;
 import mindustry.content.Items;
+import mindustry.content.StatusEffects;
 import mindustry.content.Liquids;
 import mindustry.content.UnitTypes;
 import mindustry.ctype.ContentType;
@@ -271,6 +272,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyUnitProjectiles(viewport, viewer);
         target.verifyClientEffects(viewport);
         target.verifyTurretBeamBullets(viewport, viewer);
+        target.verifyClientStatus(viewer);
         verifyPositionalAudioDispatch();
         Arm11AudioReference.verifyStockRegistry();
         UpstreamPuddleReference.verify();
@@ -460,6 +462,45 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (tested.length() == 0) throw new AssertionError("No stock turret beam bullet types were verified");
         System.out.println("UPSTREAM_TURRET_BEAMS tested=" + tested);
     }
+    private void verifyClientStatus(Team viewer) {
+        var unit = UnitTypes.dagger.spawn(viewer, 600f, 200f, 0f);
+        unit.apply(StatusEffects.burning, 10f);
+        if (!unit.hasEffect(StatusEffects.burning)) {
+            throw new AssertionError("Stock burning status was not applied");
+        }
+        float oldDelta = Time.delta;
+        float oldChance = StatusEffects.burning.effectChance;
+        try {
+            Time.delta = 1f;
+            StatusEffects.burning.effectChance = 1000f;
+            Groups.effect.clear();
+            UpstreamClientStatus.update();
+            if (Groups.effect.isEmpty()) {
+                throw new AssertionError("Stock status Fx did not spawn");
+            }
+            StatusEffects.burning.effectChance = oldChance;
+            for (int i = 0; i < 3; i++) UpstreamClientStatus.update();
+            float remaining = unit.getDuration(StatusEffects.burning);
+            if (!unit.hasEffect(StatusEffects.burning) || remaining > 6.5f || remaining < 5.5f) {
+                throw new AssertionError("Stock status timer did not advance: " + remaining);
+            }
+            for (int i = 0; i < 10; i++) UpstreamClientStatus.update();
+            if (unit.hasEffect(StatusEffects.burning)) {
+                throw new AssertionError("Stock status did not expire");
+            }
+            unit.apply(StatusEffects.boss, 5f);
+            for (int i = 0; i < 10; i++) UpstreamClientStatus.update();
+            if (!unit.hasEffect(StatusEffects.boss)) {
+                throw new AssertionError("Permanent stock status was removed");
+            }
+            unit.setDuration(StatusEffects.boss, 0f);
+        } finally {
+            Time.delta = oldDelta;
+            StatusEffects.burning.effectChance = oldChance;
+        }
+        System.out.println("UPSTREAM_CLIENT_STATUS tick=stock expire=burning permanent=boss fx=ok");
+    }
+
     private void verifyFactory(UpstreamTerrainDrawProbe.Viewport viewport) {
         for (var block : Vars.content.blocks()) {
             if (!(block instanceof UnitFactory factory)) continue;
@@ -1678,9 +1719,33 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (!barrel) {
             throw new AssertionError("Stock turret draw is missing the rotated duo barrels");
         }
+
+        var heatTile = Vars.world.tile(38, 36);
+        heatTile.setBlock(Blocks.lancer, viewer, 0);
+        var lancer = (mindustry.world.blocks.defense.turrets.Turret.TurretBuild)heatTile.build;
+        lancer.rotation = 0f;
+        lancer.heat = 1f;
+        sprites.clear();
+        layers.render(viewport, viewer, build -> build == lancer);
+        if (sprites.stream().noneMatch(sprite -> sprite.blending() == Blending.additive)) {
+            throw new AssertionError("Stock turret draw is missing the heat layer");
+        }
+        lancer.heat = 0f;
+        heatTile.setBlock(Blocks.air);
+
+        turret.liquids.clear();
+        texturedQuads = 0;
+        layers.render(viewport, viewer, build -> build == duo);
+        int dryQuads = texturedQuads;
+        turret.liquids.set(Liquids.water, 1f);
+        texturedQuads = 0;
+        layers.render(viewport, viewer, build -> build == duo);
+        boolean liquidDrawn = texturedQuads > dryQuads;
+        turret.liquids.clear();
+
         tile.setBlock(Blocks.air);
         System.out.println("UPSTREAM_TURRET_DRAW base=" + baseCount + " draw=" + sprites.size()
-            + " barrels=l,r rotation=37");
+            + " barrels=l,r heat=ok liquid=" + (liquidDrawn ? "ok" : "no-region") + " rotation=37");
     }
 
     private void verifyDynamicLight(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
