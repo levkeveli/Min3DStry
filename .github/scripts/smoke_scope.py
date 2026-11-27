@@ -102,6 +102,8 @@ SINGLEPLAYER_EXACT = {
 
 FULL_SUITE_EXACT = {
     ".github/scripts/build_unified_arm11_smoke.sh",
+    ".github/scripts/build_teavm_host.sh",
+    "research/upstream-runtime/arm11/compile_teavm.py",
     ".github/scripts/setup_smoke_azahar.sh",
     "tools/verify_azahar.py",
     "tools/UpstreamSpriteAtlas.java",
