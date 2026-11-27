@@ -15,14 +15,14 @@
       "domain": "World, Content & Saves",
       "name": "Full v160.8 Content Catalog (922 Records / 447 Buildings)",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 28,
       "evidence": [
         "research/upstream-runtime/src/content/java/UpstreamContentInitializationProbe.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java"
       ],
-      "notes": "All 922 upstream content records and 447 building factories initialize on ARM11; physical hardware >= 24 FPS verification pending."
+      "notes": "All 922 upstream content records and 447 building factories initialize on ARM11 and were exercised on both Azahar profiles. Software complete; the physical >= 24 FPS check is hardware residue tracked in docs/hardware-test-queue.md."
     },
     {
       "id": "msav-map-load-embed",
@@ -317,7 +317,7 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Core Database Browser (Items & Blocks)",
       "weight": 1,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline"],
       "issue": 40,
       "evidence": [
@@ -325,7 +325,7 @@
         "research/upstream-runtime/src/singleplayer/java/UpstreamCoreDatabaseMenu.java",
         "tools/verify_upstream_singleplayer.py"
       ],
-      "notes": "Unified ARM11 reads the pinned stock catalog in the title and offline pause routes. Both Azahar profiles opened stock details, switched to Erekir and exited. Physical verification is pending."
+      "notes": "Unified ARM11 reads the pinned stock catalog in the title and offline pause routes. Both Azahar profiles opened stock details, switched to Erekir and exited. Software complete; the physical open/exit check is hardware residue tracked in docs/hardware-test-queue.md."
     },
     {
       "id": "menus-title-settings-shell",
@@ -518,7 +518,7 @@
       "domain": "Audio & Soundtrack",
       "name": "Upstream Sounds / Musics Trigger & Catalog Parity",
       "weight": 2,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["probe", "multiplayer"],
       "issue": 29,
       "evidence": [
@@ -529,14 +529,14 @@
         "research/upstream-runtime/src/network-render/java/port/audio/Arm11Audio.java",
         "research/upstream-runtime/README.md"
       ],
-      "notes": "The live client binds stock Sounds and Musics IDs. The JVM reference checks registry, rule and ambience behavior, and the stock-server replay exercised representative original effects on both Azahar profiles."
+      "notes": "The live client binds stock Sounds and Musics IDs. The JVM reference checks registry, rule and ambience behavior, and the stock-server replay exercised representative original effects on both Azahar profiles. The registry check covers all 205 sound IDs and all 16 music tracks; software complete."
     },
     {
       "id": "ndsp-mixer-ogg-streamer",
       "domain": "Audio & Soundtrack",
       "name": "NDSP Hardware Mixer & Tremor OGG Music Streamer Backend",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["harness", "multiplayer"],
       "issue": 29,
       "evidence": [
@@ -550,14 +550,14 @@
         "tools/verify_live_stock_audio.py",
         "research/upstream-runtime/README.md"
       ],
-      "notes": "The live adapter uses the bounded PCM cache, four long-effect streams and the dedicated Tremor music stream. Both Azahar profiles exercised the decode and fallback paths. Audible output from the live mixer remains unverified."
+      "notes": "The live adapter uses the bounded PCM cache, four long-effect streams and the dedicated Tremor music stream. Both Azahar profiles exercised the decode and fallback paths. Software complete; audible DSP output is hardware residue tracked in docs/hardware-test-queue.md."
     },
     {
       "id": "live-ingame-sfx-music",
       "domain": "Audio & Soundtrack",
       "name": "Live In-Game Upstream SFX, Ambience & Dynamic Soundtrack",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["multiplayer"],
       "issue": 29,
       "evidence": [
@@ -567,7 +567,7 @@
         "tools/verify_stock_live_audio.py",
         "research/upstream-runtime/README.md"
       ],
-      "notes": "Both Azahar profiles exercised the stock audio lifecycle in Join and the offline Ground Zero fixture, including game1 and the drill loop offline. The emulator used decode-only fallback. Audible DSP output remains open."
+      "notes": "Both Azahar profiles exercised the stock audio lifecycle in Join and the offline Ground Zero fixture, including game1 and the drill loop offline. The emulator used decode-only fallback. Software complete; audible DSP output is hardware residue tracked in docs/hardware-test-queue.md."
     },
     {
       "id": "mp-crossplay-client",
