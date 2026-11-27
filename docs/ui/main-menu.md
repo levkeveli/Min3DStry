@@ -233,3 +233,8 @@ the German Join Game route discovered one stock v160.8 Glacier session.
 The details screen showed the stock mode, player count, version and
 advertised address. The server log recorded the same client connecting and
 disconnecting after the gameplay replay.
+
+The [integrated replay at `879dd83`](https://github.com/levkeveli/Min3DStry/actions/runs/46044023907/artifacts/15222303071)
+repeated the German title route and the stock server's movement, wave, and
+leave checks. The details capture shows Glacier, Attack, build 160, and the
+advertised port 6567.
