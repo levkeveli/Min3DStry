@@ -159,4 +159,9 @@ suspended, then reopens the world and checks that the drill runs again
 and the border darkness clears.
 The live ARM11 replay also sends the pinned server's generated
 `Call.setMapArea` broadcasts and checks the client's actual rule state
-after both changes. The stock graphical border pass remains open.
+after both changes. In the
+[New 3DS replay at `e59111d`](https://github.com/levkeveli/Min3DStry/actions/runs/45758795565/job/139709347324),
+the stock server narrowed Glacier from 150×250 to 142×242, then restored
+the full bounds. The handheld applied both updates and completed the
+movement, wave and disconnect checks. The stock graphical border pass
+remains open.
