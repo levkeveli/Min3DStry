@@ -76,12 +76,12 @@ applied bits, and keeps permanent/dynamic effects. Periodic
 `StatusEffect.update` damage and its Fx remain server-authoritative and are not
 simulated on the client.
 
-The host reference applies `burning` for ten ticks, advances four ticks, checks
-the remaining duration, expires it, and confirms the permanent `boss` effect is
-retained:
+The host reference applies `burning`, forces the status Fx chance, confirms the
+stock effect spawns into the effect layer, advances the timer, expires it, and
+confirms the permanent `boss` effect is retained:
 
 ```text
-UPSTREAM_CLIENT_STATUS tick=stock expire=burning permanent=boss
+UPSTREAM_CLIENT_STATUS tick=stock expire=burning permanent=boss fx=ok
 ```
 
 ## Live projectile drawing

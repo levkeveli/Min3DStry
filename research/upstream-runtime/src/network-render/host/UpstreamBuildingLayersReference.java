@@ -469,9 +469,17 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             throw new AssertionError("Stock burning status was not applied");
         }
         float oldDelta = Time.delta;
+        float oldChance = StatusEffects.burning.effectChance;
         try {
             Time.delta = 1f;
-            for (int i = 0; i < 4; i++) UpstreamClientStatus.update();
+            StatusEffects.burning.effectChance = 1000f;
+            Groups.effect.clear();
+            UpstreamClientStatus.update();
+            if (Groups.effect.isEmpty()) {
+                throw new AssertionError("Stock status Fx did not spawn");
+            }
+            StatusEffects.burning.effectChance = oldChance;
+            for (int i = 0; i < 3; i++) UpstreamClientStatus.update();
             float remaining = unit.getDuration(StatusEffects.burning);
             if (!unit.hasEffect(StatusEffects.burning) || remaining > 6.5f || remaining < 5.5f) {
                 throw new AssertionError("Stock status timer did not advance: " + remaining);
@@ -488,8 +496,9 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             unit.setDuration(StatusEffects.boss, 0f);
         } finally {
             Time.delta = oldDelta;
+            StatusEffects.burning.effectChance = oldChance;
         }
-        System.out.println("UPSTREAM_CLIENT_STATUS tick=stock expire=burning permanent=boss");
+        System.out.println("UPSTREAM_CLIENT_STATUS tick=stock expire=burning permanent=boss fx=ok");
     }
 
     private void verifyFactory(UpstreamTerrainDrawProbe.Viewport viewport) {
