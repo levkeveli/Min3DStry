@@ -109,6 +109,7 @@ public final class UpstreamTerrainRenderProbe implements UpstreamTerrainDrawProb
 
     // Keep the catalog kinds in the same order as the native renderer.
     static final int ITEM_CATALOG = 0, BLOCK_CATALOG = 1, UNIT_CATALOG = 2, COMMAND_CATALOG = 3, STANCE_CATALOG = 4, SCHEMATIC_CATALOG = 5;
+    static final int BLOCK_RECIPE_CATALOG = 6;
 
     int buildCatalog(byte[] labels, int[] icons, int selected, boolean previous, boolean next, int catalog) {
         int activeRows = selected >= 0 && selected < Integer.SIZE ? 1 << selected : 0;

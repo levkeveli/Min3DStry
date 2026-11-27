@@ -7,8 +7,10 @@ import mindustry.entities.Units;
 import mindustry.gen.Building;
 import mindustry.type.Item;
 import mindustry.type.UnitType;
+import mindustry.world.Block;
 import mindustry.world.blocks.distribution.ItemBridge;
 import mindustry.world.blocks.distribution.MassDriver;
+import mindustry.world.blocks.payloads.Constructor;
 import mindustry.world.blocks.payloads.PayloadMassDriver;
 import mindustry.world.blocks.power.PowerNode;
 import mindustry.world.blocks.units.UnitFactory;
@@ -38,7 +40,8 @@ final class UpstreamBuildingConfig {
             return;
         }
         boolean itemSelector = build.block.configurations.containsKey(Item.class);
-        if ((!itemSelector && !(build instanceof UnitFactory.UnitFactoryBuild)) || !build.configTapped()) return;
+        if ((!itemSelector && !(build instanceof UnitFactory.UnitFactoryBuild)
+                && !(build instanceof Constructor.ConstructorBuild)) || !build.configTapped()) return;
         choices.clear();
         if (itemSelector) {
             for (var item : Vars.content.items()) {
@@ -48,6 +51,12 @@ final class UpstreamBuildingConfig {
             for (int index = 0; index < factory.plans.size; index++) {
                 var unit = factory.plans.get(index).unit;
                 if (unit.unlockedNow() && !unit.isBanned()) choices.add(new Choice(unit, index));
+            }
+        } else if (build.block instanceof Constructor constructor) {
+            var recipes = constructor.filter.isEmpty() ? Vars.content.blocks().select(constructor::canProduce)
+                : constructor.filter;
+            for (var recipe : recipes) {
+                if (UpstreamItemChoices.accepts(recipe)) choices.add(new Choice(recipe, recipe));
             }
         }
         if (choices.isEmpty()) return;
@@ -96,6 +105,10 @@ final class UpstreamBuildingConfig {
                 target.configure(plan);
                 System.out.println("UPSTREAM_FACTORY_PLAN x=" + target.tileX() + " y=" + target.tileY()
                     + " plan=" + plan + " unit=" + (clear ? "none" : unit.name));
+            } else if (choice.content() instanceof Block recipe) {
+                target.configure(clear ? null : recipe);
+                System.out.println("UPSTREAM_CONSTRUCTOR_RECIPE x=" + target.tileX() + " y=" + target.tileY()
+                    + " block=" + (clear ? "none" : recipe.name));
             } else {
                 target.configure(clear ? null : choice.value());
                 System.out.println("UPSTREAM_CONFIG_LOCAL x=" + target.tileX() + " y=" + target.tileY()
@@ -142,6 +155,7 @@ final class UpstreamBuildingConfig {
     boolean previousPage() { return page > 0; }
     boolean nextPage() { return (page + 1) * UpstreamBuildMenu.ROWS < choices.size; }
     boolean unitPlans() { return target instanceof UnitFactory.UnitFactoryBuild; }
+    boolean blockRecipes() { return target instanceof Constructor.ConstructorBuild; }
     int selectedRow() { return selectedIndex() - page * UpstreamBuildMenu.ROWS; }
 
     private int selectedIndex() {
