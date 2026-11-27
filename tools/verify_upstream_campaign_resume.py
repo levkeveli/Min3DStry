@@ -37,7 +37,8 @@ def write_replay(path: Path, model: str, multiple: bool, move_down: bool, dense:
         # Dense ARM11 frames can be many seconds apart. Hold each button long
         # enough to cross an input poll and leave a neutral window for release.
         windows = [(start, end, key) for start, end, key in windows if sector_menu and start < 60]
-        windows += [(175, 207, sp.KEY_X), (250, 282, 1 << 7), (325, 357, 1 << 7),
+        # Hold pause across the title-to-world load and release before the first Down.
+        windows += [(175, 240, sp.KEY_X), (250, 282, 1 << 7), (325, 357, 1 << 7),
                     (400, 432, 1), (650, 682, sp.KEY_START)]
         # Keep replay running during the exit save. Azahar pauses when the movie
         # reaches its end, including while the game is compressing the map.
