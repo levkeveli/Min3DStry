@@ -1362,6 +1362,16 @@ jobs:
             "-Pglacier=$RUNNER_TEMP/Mindustry/core/assets/maps/erekir/onset.msav" \
             runErekirDuctsJvm | tee "$RUNNER_TEMP/erekir-ducts.log"
           grep -Fx 'UPSTREAM_EREKIR_DUCTS duct=4 armored=4 unloader=4 router=4 arrival=10 delivered=20 armoredArrival=10 armoredDelivered=8 bridge=duct-bridge overflow=normal underflow=inverted sort=copper routerDelivered=1' "$RUNNER_TEMP/erekir-ducts.log"
+      - name: Verify every stock logic instruction in the pinned executor
+        run: |
+          set -o pipefail
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=logic-instructions runProbeJvm \
+            | tee "$RUNNER_TEMP/logic-instructions.log"
+          grep -Fx 'UPSTREAM_LOGIC_INSTRUCTIONS classes=52 ops=45 conditions=8 jump=ok end=ok print=ok format=ok color=ok' "$RUNNER_TEMP/logic-instructions.log"
       - uses: actions/upload-artifact@v4
         with:
           name: unified-arm11-smoke

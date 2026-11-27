@@ -1030,6 +1030,24 @@ passed this replay on the Original and New 3DS profiles in Azahar. Stock
 Mindustry v160.8 reopened both saves and verified the updated Canvas pixel,
 three processor links and the display-linked marker.
 
+### Logic VM instruction coverage
+
+`UpstreamLogicInstructionsProbe` runs the pinned `LExecutor` on the host JVM
+without a world or content. It asserts that all 52 stock instruction classes
+are present, executes all 45 `LogicOp` opcodes through `OpI` and compares each
+result with the pinned function, drives `SelectI` with all 8 `ConditionOp`
+values, and checks jump taken/fall-through, `end`, `stop`, `print`,
+`printchar`, `format`, `packcolor` and `unpackcolor`:
+
+```
+./gradlew -p research/upstream-runtime -Pprobe=logic-instructions runProbeJvm
+UPSTREAM_LOGIC_INSTRUCTIONS classes=52 ops=45 conditions=8 jump=ok end=ok print=ok format=ok color=ok
+```
+
+The unified-build smoke job runs the same probe and greps that marker. World-
+and unit-bound instructions (links, cells, sensors, radar, unit control and
+world processors) execute in the offline and live replays above.
+
 ### Renderer timing
 
 Create an empty `sd:/3ds/min3dstry/frame-perf.txt` before launching the playable
