@@ -285,3 +285,24 @@ lead=1234, silicon=30`, batch fixture `move=1, wave=1, core=1`, and a separate
 
 Fixes from the batch: pause-overlay placement/label stripping (#535) and
 notification-above-item-list draw order (#542).
+
+### World darkness
+
+The playable world samples the pinned v160.8 `World.getDarkness` values
+and the restricted-area clear rectangle from `BlockRenderer`. The
+Citro2D texture uses `darkness.frag`'s black output and inverted red
+channel as alpha, with a one-texel margin for linear interpolation.
+Both session modes submit the texture at the original darkness layer,
+after buildings and before the higher world layers and the HUD. The
+JVM fixture covers a natural wall, a map edge, contraction and restored
+bounds. The grouped New 3DS replay sends the stock server's rules packet
+with a restricted area, checks that three exterior pixels become black
+while the interior stays unchanged, and checks that reopening the area
+restores all six samples before continuing through the controller checks.
+
+The exact `d21ad52` New 3DS run passed the unified build, offline campaign
+replays, and stock Java multiplayer replay. The archived frames show the
+original Glacier view, the darkened exterior with the active core still
+visible, and the original view after the server restores the map area.
+The checks also sampled two exposed stock Core Nucleus texels through the
+localized HUD. [Screenshots and logs](https://github.com/levkeveli/Min3DStry/actions/runs/46051348802/artifacts/15225957206)
