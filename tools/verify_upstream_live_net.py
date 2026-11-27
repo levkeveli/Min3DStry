@@ -1314,23 +1314,40 @@ def capture_marker_pixels(rpc, output, model, phase, points, timeout, expected=N
     raise RuntimeError(f"{phase} pixels: expected {expected}, got {samples}")
 
 
+WORLD_LIGHT_POINTS = ((140, 150), (306, 182))
+WORLD_LIGHT_AMBIENT = "223344eb"
+WORLD_LIGHT_RED = "ff000080"
+WORLD_LIGHT_CYAN = "00ffff70"
+
+
+def world_light_composite(destination, *lights):
+    # Pinned LightRenderer draws normal RGB into a cleared RGBA8 target
+    # with GL_MAX alpha. Then light.frag mixes the tint and subtracts alpha.
+    rgb = (0, 0, 0)
+    alpha = 0.0
+    for rgba in lights:
+        *color, opacity_byte = bytes.fromhex(rgba)
+        opacity = opacity_byte / 255
+        rgb = tuple(round(after * opacity + before * (1 - opacity)) for before, after in zip(rgb, color))
+        alpha = max(alpha, opacity)
+    *ambient, ambient_alpha = bytes.fromhex(WORLD_LIGHT_AMBIENT)
+    tint = tuple(before * (1 - alpha) + after * alpha for before, after in zip(ambient, rgb))
+    overlay = max(0, ambient_alpha / 255 - alpha)
+    return tuple(round(before * (1 - overlay) + after * overlay) for before, after in zip(destination, tint))
+
+
 def verify_world_lighting(server_log, server, rpc, output, model, position, timeout):
     _, _, x, y = position
     x, y = (math.floor(float(value) / 8 + 0.5) * 8 for value in (x, y))
-    points = ((140, 150), (306, 182))
-    ambient = (34, 51, 68)
-    ambient_alpha = 235 / 255
-    red, cyan = (255, 0, 0), (0, 255, 255)
-    red_alpha, cyan_alpha = 128 / 255, 112 / 255
 
     def capture(phase, expected=None):
         return capture_marker_pixels(rpc, output, model, f"world-light-{phase}",
-                                     points, timeout, expected, tolerance=6)
+                                     WORLD_LIGHT_POINTS, timeout, expected, tolerance=6)
 
     def apply_rules(phase, enabled):
         send_marker_phase(server_log, server, phase,
             f"const rules=Vars.state.rules; rules.lighting={str(enabled).lower()}; "
-            'rules.ambientLight.set(Color.valueOf("223344eb")); '
+            f'rules.ambientLight.set(Color.valueOf("{WORLD_LIGHT_AMBIENT}")); '
             'const p=Groups.player.find(boolf(v=>String(v.name)===' + json.dumps(PLAYER) + ')); '
             "Call.setRules(p.con,rules);")
 
@@ -1340,25 +1357,15 @@ def verify_world_lighting(server_log, server, rpc, output, model, position, time
             f'Call.createMarker({ident},marker); '
             f'Call.updateMarker({ident},Packages.mindustry.logic.LMarkerControl.light,1,NaN,NaN);')
 
-    def composite(destination, *lights):
-        # Pinned LightRenderer draws normal RGB into a cleared RGBA8 target
-        # with GL_MAX alpha. Then light.frag mixes the tint and subtracts alpha.
-        rgb = (0, 0, 0)
-        alpha = 0.0
-        for color, opacity in lights:
-            rgb = tuple(round(after * opacity + before * (1 - opacity)) for before, after in zip(rgb, color))
-            alpha = max(alpha, opacity)
-        tint = tuple(before * (1 - alpha) + after * alpha for before, after in zip(ambient, rgb))
-        overlay = max(0, ambient_alpha - alpha)
-        return tuple(round(before * (1 - overlay) + after * overlay) for before, after in zip(destination, tint))
-
     baseline = capture("disabled")
     apply_rules("light-ambient", True)
-    clear = capture("ambient", tuple(composite(pixel) for pixel in baseline))
-    add_light("light-red", 758, "ff000080")
-    single = capture("single", (composite(baseline[0], (red, red_alpha)), clear[1]))
-    add_light("light-cyan", 759, "00ffff70")
-    overlap = capture("overlap", (composite(baseline[0], (red, red_alpha), (cyan, cyan_alpha)), clear[1]))
+    clear = capture("ambient", tuple(world_light_composite(pixel) for pixel in baseline))
+    add_light("light-red", 758, WORLD_LIGHT_RED)
+    single_color = world_light_composite(baseline[0], WORLD_LIGHT_RED)
+    single = capture("single", (single_color, clear[1]))
+    add_light("light-cyan", 759, WORLD_LIGHT_CYAN)
+    overlap_color = world_light_composite(baseline[0], WORLD_LIGHT_RED, WORLD_LIGHT_CYAN)
+    overlap = capture("overlap", (overlap_color, clear[1]))
     if single[0] == overlap[0]:
         raise RuntimeError("Overlap frame did not show the second light")
     send_marker_phase(server_log, server, "light-removed", "Call.removeMarker(758); Call.removeMarker(759);")
