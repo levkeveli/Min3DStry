@@ -1,6 +1,6 @@
 # Production, Power Graph & Liquid Flow Baseline (Issue #39)
 
-**Verification status:** Emulator-tested across pinned upstream Mindustry `v160.8` JVM, TeaVM C `-O0` / `-O2`, and Azahar `2126.2` New/Old 3DS profiles (`-Pprobe=production-ticks`); `production-power-liquids` in [port-capabilities.json](../port-capabilities.json) is **Emulator-tested** under [#39](https://github.com/levkeveli/Min3DStry/issues/39). Physical 3DS memory/frame-time verification remains open.
+**Verification status:** Emulator-tested across pinned upstream Mindustry `v160.8` JVM, TeaVM C `-O0` / `-O2`, and Azahar `2126.2` New/Old 3DS profiles (`-Pprobe=production-ticks`); `production-power-liquids` in [port-capabilities.json](../port-capabilities.json) is **Emulator-tested** under [#39](https://github.com/levkeveli/Min3DStry/issues/39). Physical 3DS memory/frame-time verification remains open. The `liquids-pumps-conduits` mechanic is **software complete**: the host liquid registry, bridge/phase one-way transfer, router dump and junction routing markers below run in the smoke workflow.
 
 ## 1:1 Upstream Mandate
 
@@ -89,6 +89,9 @@ each target, rejects a back-linked pair, and prints
 backLink=rejected`. It also dumps a filled Liquid Router into an adjacent 1x1 router sink
 and checks Liquid Junction far-side and dead-end routing
 (`UPSTREAM_LIQUID_ROUTER_REFERENCE`, `UPSTREAM_LIQUID_JUNCTION_REFERENCE`).
+The unified-build smoke job now greps the registry total and all three routing
+markers, so a predicate or transfer regression fails CI instead of only
+changing a log line.
 
 ### Stock building power bar
 

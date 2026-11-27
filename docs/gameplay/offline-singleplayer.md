@@ -930,6 +930,25 @@ showed the active heat layers on both Azahar console profiles. Stock
 Mindustry v160.8 reopened the two ARM11 saves and read back the original
 reactor heat, carbide, and neoplasm.
 
+### Erekir ducts
+
+`UpstreamErekirDuctProbe` runs the original duct, armored duct, duct router and
+duct unloader blocks inside the port's offline tick loop on the stock
+`maps/erekir/onset.msav`. It asserts the pinned speed, capacity, armored and
+bridge-replacement flags, keeps the overflow/underflow polarity, and checks
+that a two-duct line still delivers 20 copper items by tick 10, that the
+armored duct takes its input through the facing edge, and that a sorted duct
+router forwards its item into the facing duct.
+
+```
+./gradlew -p research/upstream-runtime -Pprobe=erekir-ducts \
+  -Pglacier=/path/to/onset.msav runErekirDuctsJvm
+UPSTREAM_EREKIR_DUCTS duct=4 armored=4 unloader=4 router=4 arrival=10 delivered=20 armoredArrival=10 armoredDelivered=8 bridge=duct-bridge overflow=normal underflow=inverted sort=copper routerDelivered=1
+```
+
+The unified-build smoke job runs the same probe and greps that marker, so the
+stock duct family stays covered without a handheld run.
+
 ## Original liquid puddles
 
 The world renderer submits upstream puddle drawing with the original
@@ -994,6 +1013,24 @@ The [combined ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/4
 passed this replay on the Original and New 3DS profiles in Azahar. Stock
 Mindustry v160.8 reopened both saves and verified the updated Canvas pixel,
 three processor links and the display-linked marker.
+
+### Logic VM instruction coverage
+
+`UpstreamLogicInstructionsProbe` runs the pinned `LExecutor` on the host JVM
+without a world or content. It asserts that all 52 stock instruction classes
+are present, executes all 45 `LogicOp` opcodes through `OpI` and compares each
+result with the pinned function, drives `SelectI` with all 8 `ConditionOp`
+values, and checks jump taken/fall-through, `end`, `stop`, `print`,
+`printchar`, `format`, `packcolor` and `unpackcolor`:
+
+```
+./gradlew -p research/upstream-runtime -Pprobe=logic-instructions runProbeJvm
+UPSTREAM_LOGIC_INSTRUCTIONS classes=52 ops=45 conditions=8 jump=ok end=ok print=ok format=ok color=ok
+```
+
+The unified-build smoke job runs the same probe and greps that marker. World-
+and unit-bound instructions (links, cells, sensors, radar, unit control and
+world processors) execute in the offline and live replays above.
 
 ### Renderer timing
 
