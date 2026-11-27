@@ -27,7 +27,10 @@ public final class UpstreamUnifiedApp {
         if (args.length == 0) {
             int input = UpstreamSinglePlayerInput.poll();
             if (input < 0) return;
-            if ((input & UpstreamSinglePlayerInput.X_HELD) != 0) {
+            final int hostButtons = UpstreamSinglePlayerInput.X_HELD | UpstreamSinglePlayerInput.Y_HELD;
+            if ((input & hostButtons) == hostButtons) {
+                offline(args, new UpstreamHostedSession(true));
+            } else if ((input & UpstreamSinglePlayerInput.X_HELD) != 0) {
                 join(args);
             } else if ((input & (UpstreamSinglePlayerInput.L_HELD | UpstreamSinglePlayerInput.CAMPAIGN_HELD)) != 0
                     || ((input & UpstreamSinglePlayerInput.Y_HELD) == 0 && directStartup())) {
@@ -35,6 +38,8 @@ public final class UpstreamUnifiedApp {
             } else {
                 offline(new String[]{"--title"});
             }
+        } else if (args[0].equals("--host")) {
+            offline(Arrays.copyOfRange(args, 1, args.length), new UpstreamHostedSession(true));
         } else if (args[0].equals("--join")) {
             if (args.length > 2) throw new IllegalArgumentException("Expected --join [endpoint-file]");
             join(Arrays.copyOfRange(args, 1, args.length));
@@ -112,6 +117,10 @@ public final class UpstreamUnifiedApp {
     }
 
     private static void offline(String[] args) throws IOException, InterruptedException {
+        offline(args, new UpstreamHostedSession(false));
+    }
+
+    private static void offline(String[] args, UpstreamSinglePlayerApp.SessionHooks session) throws IOException {
         System.out.println("UPSTREAM_BOOT mode=" + (args.length > 0 && args[0].equals("--title") ? "title" : "offline"));
         var hooks = new UpstreamSinglePlayerApp.AudioHooks() {
                 boolean opened;
@@ -141,7 +150,7 @@ public final class UpstreamUnifiedApp {
                 }
         };
         try {
-            UpstreamSinglePlayerApp.run(args, hooks, UpstreamUnifiedApp::joinFromTitle);
+            UpstreamSinglePlayerApp.run(args, hooks, UpstreamUnifiedApp::joinFromTitle, session);
         } finally {
             if (hooks.opened) Arm11Audio.close();
         }

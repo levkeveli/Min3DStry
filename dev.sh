@@ -344,7 +344,8 @@ case "${1:-}" in
     ./build/host/test_audio_vorbis_stream
 
     "$host_cc" -std=c11 -Wall -Wextra -Werror -Iinclude \
-      src/net/mindustry_net.c tests/net/test_mindustry_net.c -o build/host/test_mindustry_net
+      src/net/mindustry_net.c src/net/mindustry_host_transport.c \
+      tests/net/test_mindustry_net.c -o build/host/test_mindustry_net
     ./build/host/test_mindustry_net
 
     "$host_cc" -std=c11 -Wall -Wextra -Werror -O0 -Iinclude \

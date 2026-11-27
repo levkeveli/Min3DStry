@@ -25,6 +25,7 @@ def osSource = 'arc-core/src/arc/util/OS.java'
 def networkIoSource = 'core/src/mindustry/net/NetworkIO.java'
 def saveVersionSource = 'core/src/mindustry/io/SaveVersion.java'
 def netClientSource = 'core/src/mindustry/core/NetClient.java'
+def netServerSource = 'core/src/mindustry/core/NetServer.java'
 def placementSource = 'core/src/mindustry/ui/fragments/PlacementFragment.java'
 def itemSelectionSource = 'core/src/mindustry/world/blocks/ItemSelection.java'
 def logicExecutorSource = 'mindustry/logic/LExecutor.java'
@@ -190,6 +191,7 @@ def arcJsonFile = sourceDir.map { it.file('arc/util/serialization/Json.java') }
 def networkIoFile = sourceDir.map { it.file('mindustry/net/NetworkIO.java') }
 def saveVersionFile = sourceDir.map { it.file('mindustry/io/SaveVersion.java') }
 def netClientFile = sourceDir.map { it.file('mindustry/core/NetClient.java') }
+def netServerFile = sourceDir.map { it.file('mindustry/core/NetServer.java') }
 def schematicsFile = sourceDir.map { it.file('mindustry/game/Schematics.java') }
 def placementFile = sourceDir.map { it.file('UpstreamPlacementCatalog.java') }
 def itemChoicesFile = sourceDir.map { it.file('UpstreamItemChoices.java') }
@@ -289,6 +291,9 @@ if (usesArcSources || usesExecutor) {
     if (usesLiveNetwork) {
         stagedClasses.addAll(['mindustry/core/NetClient.class', 'mindustry/core/NetClient$*.class',
                               'mindustry/ai/Pathfinder.class', 'mindustry/ai/Pathfinder$*.class'])
+    }
+    if (probe == 'unified') {
+        stagedClasses.addAll(['mindustry/core/NetServer.class', 'mindustry/core/NetServer$*.class'])
     }
     if (usesSinglePlayer || usesLiveAudio) {
         stagedClasses.addAll(['mindustry/logic/GlobalVars.class', 'mindustry/logic/GlobalVars$*.class'])
@@ -424,6 +429,11 @@ if (usesLiveNetwork) {
         dependsOn 'classes'
         classpath = sourceSets.main.runtimeClasspath
         mainClass = 'UpstreamPlayerIdentityReference'
+    }
+    tasks.register('runStockHostPacketCodecJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamHostPacketCodecReference'
     }
 }
 if (probe in ['network-render', 'unified']) {
@@ -689,6 +699,9 @@ tasks.register('prepareUpstreamProbe') {
     }
     if (usesLiveNetwork) {
         outputs.files(netClientFile, pathfinderFile)
+    }
+    if (probe == 'unified') {
+        outputs.file(netServerFile)
     }
     if (probe in ['network-render', 'unified']) {
         outputs.file(sourceDir.map { it.file('mindustry/entities/Effect.java') })
@@ -1442,6 +1455,12 @@ import port.audio.Arm11Audio;''')
             if (unitType.count(localItems) != 1) {
                 throw new GradleException('Pinned UnitType item label check changed')
             }
+            def drawBuilding = '            unit.drawBuilding();'
+            if (unitType.count(drawBuilding) != 1) {
+                throw new GradleException('Pinned UnitType builder preview changed')
+            }
+            unitType = unitType.replace('import arc.*;', 'import arc.*;\nimport port.render.UpstreamRemoteBuildPlans;')
+                .replace(drawBuilding, '            UpstreamRemoteBuildPlans.draw(unit);')
             def adaptedUnitType = unitTypeFile.get().asFile
             adaptedUnitType.parentFile.mkdirs()
             adaptedUnitType.setText(unitType.replace(localItems, 'if(renderer != null && Fonts.outline != null && unit.isLocal() && !renderer.pixelate){'), 'UTF-8')
@@ -2276,6 +2295,46 @@ ${barOracle}""")
             // This synchronous path never yields on TeaVM C's single execution lane.
             // Its cache and subdivision stay atomic without the failing Java monitor.
             adaptedGrid.setText(grid.replace(create, 'public static PlanetGrid create(int size){'), 'UTF-8')
+        }
+        if (probe == 'unified') {
+            def source = new String(readUpstream(netServerSource), 'UTF-8')
+            def formattedSize = 'Strings.formatByteCount(stream.size())'
+            if (source.count(formattedSize) != 2) {
+                throw new GradleException('Pinned NetServer stream logs changed')
+            }
+            def outputServer = netServerFile.get().asFile
+            outputServer.parentFile.mkdirs()
+            def worldWrite = '        NetworkIO.writeWorld(player, new FastDeflaterOutputStream(stream));'
+            def worldQueue = '        player.con.sendStream(new WorldStream(), stream);'
+            if (source.count(worldWrite) != 1 || source.count(worldQueue) != 1) {
+                throw new GradleException('Pinned NetServer world stream stages changed')
+            }
+            def syncStart = source.indexOf('    void sync(){')
+            def syncEnd = source.indexOf('    static void clientPlanSnapshotSend(', syncStart)
+            if (syncStart < 0 || syncEnd < 0) throw new GradleException('Pinned NetServer sync boundaries changed')
+            def sync = source.substring(syncStart, syncEnd)
+            def stages = [
+                '    void sync(){': '    void sync(){\n        String syncPhase = "connection-check";',
+                '                writeStateSnapshot();': '                syncPhase = "state-snapshot";\n                writeStateSnapshot();',
+                '                if(Vars.state.rules.fog){': '                syncPhase = "entity-snapshot";\n                if(Vars.state.rules.fog){',
+                '                //write custom player-specific entities': '                syncPhase = "custom-entities";\n                //write custom player-specific entities',
+                '            if(Groups.player.size() > 0 && Core.settings.getBool("blocksync")': '            syncPhase = "block-snapshot";\n            if(Groups.player.size() > 0 && Core.settings.getBool("blocksync")',
+                '            if(Groups.player.size() > 0 && buildHealthChanged.size > 0': '            syncPhase = "building-health";\n            if(Groups.player.size() > 0 && buildHealthChanged.size > 0',
+                '            //TODO: this system is a big bandwidth waster': '            syncPhase = "plan-preview";\n            //TODO: this system is a big bandwidth waster',
+                '        }catch(IOException e){': '''        }catch(RuntimeException failure){
+            System.out.println("UPSTREAM_HOST_SYNC_ERROR phase=" + syncPhase);
+            throw failure;
+        }catch(IOException e){'''
+            ]
+            stages.each { before, after ->
+                if (sync.count(before) != 1) throw new GradleException("Pinned NetServer sync stage changed: ${before}")
+                sync = sync.replace(before, after)
+            }
+            source = source.substring(0, syncStart) + sync + source.substring(syncEnd)
+            outputServer.setText(source.replace(formattedSize, 'stream.size() + " bytes"')
+                .replace(worldWrite, '        System.out.println("UPSTREAM_HOST_WORLD writing=true");\n' + worldWrite)
+                .replace(worldQueue, '        System.out.println("UPSTREAM_HOST_WORLD bytes=" + stream.size());\n'
+                    + worldQueue + '\n        System.out.println("UPSTREAM_HOST_WORLD queued=true");'), 'UTF-8')
         }
         if (usesLiveNetwork) {
             if (!usesSinglePlayer) {

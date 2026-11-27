@@ -32,7 +32,9 @@ if [[ $mode == --network || $mode == --unified ]]; then
     title="Min3DStry"
     repo="$root/../../.."
     native_network=(-I"$root" -I"$repo/include" -I"$repo/src/platform/3ds"
-        "$root/m3ds_net_bridge.c" "$root/m3ds_live_audio.c" "$repo/src/net/mindustry_net.c" "$repo/src/platform/3ds/net_3ds.c")
+        "$root/m3ds_net_bridge.c" "$root/m3ds_host_net_bridge.c" "$root/m3ds_live_audio.c"
+        "$repo/src/net/mindustry_net.c" "$repo/src/net/mindustry_host_transport.c"
+        "$repo/src/net/mindustry_host_socket.c" "$repo/src/platform/3ds/net_3ds.c")
 fi
 if [[ $mode == --singleplayer || $mode == --unified ]]; then
     title="Min3DStry"
@@ -185,6 +187,15 @@ if [[ $# -gt 0 ]]; then
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"
     package_flags=(--smdh="$output/upstream-probe.smdh" --romfs="$output/romfs")
 fi
+code_layout_flags=()
+debug_flags=(-g)
+if [[ $mode == --unified ]]; then
+    # Keep generated calls relocatable so the linker can insert ARM branch veneers.
+    code_layout_flags=(-ffunction-sections)
+    # The unified C unit needs line tables for diagnostics. Full local-variable
+    # DWARF makes cc1 exceed the hosted runner's memory before it can link.
+    debug_flags=(-g1 -fno-var-tracking -fno-var-tracking-assignments)
+fi
 # TODO: remove once TeaVM 0.16 C generates matching object-reference casts.
 # Scoped opt-in: only probes that need it set M3DS_RELAX_POINTER_TYPES=1.
 # Never set it globally; unrelated probes must keep the pointer-type diagnostic.
@@ -194,9 +205,9 @@ if [[ "${M3DS_RELAX_POINTER_TYPES:-0}" == "1" ]]; then
 fi
 compiler="$DEVKITARM/bin/arm-none-eabi-gcc"
 arch_flags=(-march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft)
-compile_flags=(-std=gnu11 -g "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations
+compile_flags=(-std=gnu11 "${debug_flags[@]}" "$arm11_opt" -fwrapv -D__3DS__ -mword-relocations
     "${arch_flags[@]}" -I"$output/nativeinclude" -I"$DEVKITPRO/libctru/include"
-    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${stack_flags[@]}")
+    "${terrain_flags[@]}" "${save_rows_flags[@]}" "${pointer_flags[@]}" "${stack_flags[@]}" "${code_layout_flags[@]}")
 # Keep the original compiler layout for stock JSON writes. A split unified
 # ROM exhausted the 3DS stack during the Ground Zero save replay.
 case "$mode" in

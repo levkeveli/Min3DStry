@@ -1,18 +1,45 @@
+import arc.Core;
+import arc.files.Fi;
+import arc.mock.MockApplication;
+import arc.mock.MockAudio;
+import arc.mock.MockFiles;
+import arc.mock.MockGraphics;
+import arc.mock.MockSettings;
 import arc.net.Client;
 import arc.net.Connection;
 import arc.net.DcReason;
 import arc.net.NetListener;
 import arc.struct.Seq;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
+import mindustry.core.ContentLoader;
+import mindustry.core.GameState;
+import mindustry.core.NetClient;
+import mindustry.core.World;
 import mindustry.core.Version;
+import mindustry.gen.BlockSnapshotCallPacket;
+import mindustry.gen.Building;
+import mindustry.gen.ConnectConfirmCallPacket;
+import mindustry.gen.Groups;
+import mindustry.gen.Player;
+import mindustry.gen.RequestBlockSnapshotCallPacket;
+import mindustry.gen.SendChatMessageCallPacket;
+import mindustry.gen.SendMessageCallPacket2;
+import mindustry.gen.StateSnapshotCallPacket;
+import mindustry.maps.Maps;
+import mindustry.mod.Mods;
 import mindustry.net.ArcNetProvider;
 import mindustry.net.Net;
+import mindustry.net.NetworkIO;
 import mindustry.net.Packets.ConnectPacket;
 import mindustry.net.Packets.StreamBegin;
 import mindustry.net.Packets.StreamChunk;
@@ -20,11 +47,24 @@ import mindustry.net.Streamable.StreamBuilder;
 
 /** Records the compressed payload sent by a local upstream headless server. */
 public final class UpstreamWorldStreamCapture implements NetListener {
+    private final String chatText;
     private final CompletableFuture<byte[]> world = new CompletableFuture<>();
+    private final CompletableFuture<Void> snapshot = new CompletableFuture<>();
+    private final CompletableFuture<Void> chat = new CompletableFuture<>();
+    private final CompletableFuture<BlockSnapshotCallPacket> coreSnapshot = new CompletableFuture<>();
+    private volatile Building requestedCore;
     private StreamBuilder builder;
 
+    private UpstreamWorldStreamCapture(boolean rejoin) {
+        chatText = rejoin ? "New 3DS crossplay rejoin" : "New 3DS crossplay reference";
+    }
+
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) throw new IllegalArgumentException("Expected a loopback port and new fixture path");
+        boolean rejoin = args.length == 3 && args[2].equals("--rejoin");
+        boolean confirm = rejoin || args.length == 3 && args[2].equals("--confirm");
+        if (args.length != 2 && !confirm) {
+            throw new IllegalArgumentException("Expected a loopback port, new fixture path, and optional --confirm or --rejoin");
+        }
         int port = Integer.parseInt(args[0]);
         Version.init();
         if (Version.build != 160 || Version.revision != 8 || !Version.type.equals("official")) {
@@ -32,7 +72,7 @@ public final class UpstreamWorldStreamCapture implements NetListener {
         }
         Vars.net = new Net(null);
         Vars.net.setClientConnected();
-        var capture = new UpstreamWorldStreamCapture();
+        var capture = new UpstreamWorldStreamCapture(rejoin);
         var client = new Client(16_384, ArcNetProvider.clientReadBufferSize, new ArcNetProvider.PacketSerializer());
         client.addListener(capture);
         client.start();
@@ -41,9 +81,58 @@ public final class UpstreamWorldStreamCapture implements NetListener {
             byte[] payload = capture.world.get(10, TimeUnit.SECONDS);
             Files.write(Path.of(args[1]), payload, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
             System.out.println("UPSTREAM_WORLD_STREAM_CAPTURE bytes=" + payload.length);
+            if (confirm) {
+                var core = loadStockWorld(payload, Path.of(args[1]).toAbsolutePath().getParent());
+                client.sendTCP(new ConnectConfirmCallPacket());
+                capture.snapshot.get(10, TimeUnit.SECONDS);
+                System.out.println("UPSTREAM_HOSTED_WORLD_CONFIRMED stock-snapshot=true");
+                // Stock NetClient ignores messages from connections younger than 500 ms.
+                Thread.sleep(600);
+                var message = new SendChatMessageCallPacket();
+                message.message = capture.chatText;
+                client.sendTCP(message);
+                capture.chat.get(10, TimeUnit.SECONDS);
+                System.out.println("UPSTREAM_HOSTED_WORLD_CHAT stock-echo=true");
+                capture.requestedCore = core;
+                var request = new RequestBlockSnapshotCallPacket();
+                request.pos = core.pos();
+                client.sendUDP(request);
+                var block = capture.coreSnapshot.get(10, TimeUnit.SECONDS);
+                block.handleClient();
+                System.out.println("UPSTREAM_HOSTED_WORLD_CORE_SYNC pos=" + core.pos() + " block=" + core.block.name);
+            }
         } finally {
             client.stop();
         }
+    }
+
+    private static Building loadStockWorld(byte[] payload, Path output) {
+        Core.app = new MockApplication();
+        Core.audio = new MockAudio();
+        Core.files = new MockFiles();
+        Core.graphics = new MockGraphics();
+        Core.settings = new MockSettings();
+        Vars.headless = true;
+        Vars.state = new GameState();
+        Vars.content = new ContentLoader();
+        Vars.customMapDirectory = new Fi(output.resolve("maps").toString());
+        Vars.maps = new Maps();
+        Vars.mods = new Mods();
+        Vars.content.createBaseContent();
+        Vars.content.init();
+        Groups.init();
+        Vars.world = new World();
+        Vars.player = Player.create();
+        Vars.netClient = new NetClient();
+        InputStream compressed = new ByteArrayInputStream(payload);
+        NetworkIO.loadWorld(new InflaterInputStream(compressed));
+        var core = Vars.player.team().core();
+        if (Vars.world.width() <= 0 || Vars.world.height() <= 0 || core == null) {
+            throw new IllegalStateException("Stock Java did not load the hosted world and player's core");
+        }
+        System.out.println("UPSTREAM_HOSTED_WORLD_STOCK_LOAD tiles=" + Vars.world.width() + "x" + Vars.world.height()
+            + " core=" + core.block.name + " map=" + Vars.state.map.name());
+        return core;
     }
 
     @Override
@@ -67,18 +156,39 @@ public final class UpstreamWorldStreamCapture implements NetListener {
             } else if (object instanceof StreamChunk chunk && builder != null && builder.id == chunk.id) {
                 builder.add(chunk.data);
                 if (builder.isDone()) {
-                    if (builder.received != builder.total) throw new IllegalStateException("World stream size differs");
+                    if (builder.received != builder.total) {
+                        throw new IllegalStateException("Expected " + builder.total
+                            + " world bytes but received " + builder.received);
+                    }
                     world.complete(builder.build().stream.readAllBytes());
                     builder = null;
                 }
+            } else if (object instanceof StateSnapshotCallPacket) {
+                snapshot.complete(null);
+            } else if (object instanceof BlockSnapshotCallPacket reply && requestedCore != null) {
+                reply.handled();
+                if (reply.amount != 1 || reply.data.length < 6) return;
+                var reader = ByteBuffer.wrap(reply.data);
+                if (reader.getInt() == requestedCore.pos() && reader.getShort() == requestedCore.block.id) {
+                    coreSnapshot.complete(reply);
+                }
+            } else if (object instanceof SendMessageCallPacket2 reply && snapshot.isDone()) {
+                reply.handled();
+                if (chatText.equals(reply.unformatted)) chat.complete(null);
             }
         } catch (RuntimeException error) {
             world.completeExceptionally(error);
+            chat.completeExceptionally(error);
+            coreSnapshot.completeExceptionally(error);
         }
     }
 
     @Override
     public void disconnected(Connection connection, DcReason reason) {
-        world.completeExceptionally(new IllegalStateException("Disconnected before receiving the world: " + reason));
+        var error = new IllegalStateException("Disconnected before receiving the world and its first state: " + reason);
+        world.completeExceptionally(error);
+        snapshot.completeExceptionally(error);
+        chat.completeExceptionally(error);
+        coreSnapshot.completeExceptionally(error);
     }
 }

@@ -1,8 +1,43 @@
 #include "net/mindustry_net.h"
+#include "net/mindustry_host_transport.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+
+static void test_host_registration_and_framing(void) {
+  const uint8_t id_frame[] = {0, 6, 0xfe, 4, 0xff, 0xff, 0xff, 0xd6};
+  const uint8_t udp[] = {0xfe, 3, 0xff, 0xff, 0xff, 0xd6};
+  const uint8_t wrong_id[] = {0xfe, 3, 0xff, 0xff, 0xff, 0xd7};
+  const uint8_t ack[] = {0, 6, 0xfe, 3, 0, 0, 0, 0};
+  uint8_t frame[M3DS_HOST_REGISTRATION_FRAME_SIZE];
+  M3dsNetHostPeer peer;
+  assert(m3ds_net_host_begin(&peer, -42, frame));
+  assert(!peer.registered && memcmp(frame, id_frame, sizeof(frame)) == 0);
+  assert(!m3ds_net_host_register_udp(&peer, wrong_id, sizeof(wrong_id), frame));
+  assert(!m3ds_net_host_register_udp(&peer, udp, sizeof(udp) - 1U, frame));
+  assert(!peer.registered);
+  assert(m3ds_net_host_register_udp(&peer, udp, sizeof(udp), frame));
+  assert(peer.registered && memcmp(frame, ack, sizeof(frame)) == 0);
+  assert(!m3ds_net_host_register_udp(&peer, udp, sizeof(udp), frame));
+
+  const uint8_t frames[] = {0, 2, 0xfe, 2, 0, 6, 0xfe, 3, 0, 0, 0, 0};
+  const uint8_t too_long[] = {0x40, 1};
+  const uint8_t empty[] = {0, 0};
+  const uint8_t *payload;
+  size_t payload_size, consumed;
+  for (size_t prefix = 0; prefix < 4U; ++prefix) {
+    assert(m3ds_net_host_tcp_payload(frames, prefix, &payload, &payload_size, &consumed) == M3DS_HOST_FRAME_INCOMPLETE);
+    assert(payload == NULL && payload_size == 0U && consumed == 0U);
+  }
+  assert(m3ds_net_host_tcp_payload(frames, sizeof(frames), &payload, &payload_size, &consumed) == M3DS_HOST_FRAME_READY);
+  assert(payload == frames + 2U && payload_size == 2U && consumed == 4U);
+  assert(m3ds_net_host_tcp_payload(frames + consumed, sizeof(frames) - consumed, &payload, &payload_size, &consumed)
+      == M3DS_HOST_FRAME_READY);
+  assert(payload == frames + 6U && payload_size == 6U && consumed == 8U);
+  assert(m3ds_net_host_tcp_payload(too_long, sizeof(too_long), &payload, &payload_size, &consumed) == M3DS_HOST_FRAME_INVALID);
+  assert(m3ds_net_host_tcp_payload(empty, sizeof(empty), &payload, &payload_size, &consumed) == M3DS_HOST_FRAME_INVALID);
+}
 
 static void test_tcp_framing_and_framework(void) {
   uint8_t raw[16];
@@ -620,6 +655,7 @@ static void test_zero_read_is_disconnected(void) {
 }
 
 int main(void) {
+  test_host_registration_and_framing();
   test_tcp_framing_and_framework();
   test_host_info_decoder();
   test_ping_host_large_datagram();

@@ -183,6 +183,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyArcOrder();
         target.verifyTexturedLine();
         target.verifyFactory(viewport);
+        target.verifyRemoteBuildPreview();
 
         // The visible two-tile wall starts one tile west of the viewport.
         viewport.moveTo(24, 30);
@@ -279,6 +280,26 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         UpstreamWeatherLayersReference.verify();
     }
 
+    private void verifyRemoteBuildPreview() {
+        var team = Vars.state.rules.defaultTeam;
+        var core = team.core();
+        var tile = Vars.world.tile(core.tileX() - 5, core.tileY());
+        var unit = UnitTypes.alpha.create(team);
+        unit.set(tile.worldx(), tile.worldy() - 24f);
+        unit.addBuild(new mindustry.entities.units.BuildPlan(tile.x, tile.y, 0, Blocks.conveyor));
+        unit.updateBuilding(true);
+        sprites.clear();
+        try {
+            if (unit.isLocal() || !unit.activelyBuilding()) throw new AssertionError("Expected an active remote builder");
+            port.render.UpstreamRemoteBuildPlans.draw(unit);
+            if (firstAt(tile.worldx(), tile.worldy()) < 0 || sprites.size() < 4) {
+                throw new AssertionError("The remote builder did not submit its conveyor preview and build beam");
+            }
+            System.out.println("UPSTREAM_REMOTE_BUILD_PREVIEW stock-conveyor=ok build-beam=ok");
+        } finally {
+            Draw.reset();
+        }
+    }
     private static void verifyPositionalAudioDispatch() {
         Core.audio = new MockAudio() {
             @Override public boolean initialized() { return true; }

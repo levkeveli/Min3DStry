@@ -140,8 +140,20 @@ public final class UpstreamSinglePlayerApp {
         boolean open(UpstreamWorldLoadProbe.ProbeApplication app, boolean atlasReady, Settings settings) throws IOException;
     }
 
-    private UpstreamSinglePlayerApp(AudioHooks audio) {
+    interface SessionHooks {
+        default void open() throws IOException {}
+        default void tick() {}
+        default void close() {}
+        default boolean canHost() { return false; }
+        default boolean hosting() { return false; }
+        default void toggleHosting() throws IOException {}
+    }
+
+    private final SessionHooks sessionHooks;
+
+    private UpstreamSinglePlayerApp(AudioHooks audio, SessionHooks sessionHooks) {
         this.audio = audio;
+        this.sessionHooks = sessionHooks;
     }
 
     public static void main(String[] args) throws IOException {
@@ -149,14 +161,15 @@ public final class UpstreamSinglePlayerApp {
     }
 
     static void run(String[] args, AudioHooks audio) throws IOException {
-        run(args, audio, null);
+        run(args, audio, null, new SessionHooks() {});
     }
 
-    static void run(String[] args, AudioHooks audio, TitleJoin join) throws IOException {
+    static void run(String[] args, AudioHooks audio, TitleJoin join, SessionHooks hooks) throws IOException {
         try {
-            new UpstreamSinglePlayerApp(audio).run(args, join);
+            new UpstreamSinglePlayerApp(audio, hooks).run(args, join);
         } catch (IOException | RuntimeException failure) {
             System.out.println("UPSTREAM_SP_ERROR " + failure.getClass().getName() + ": " + failure.getMessage());
+            if (hooks.canHost()) failure.printStackTrace(System.out);
             throw failure;
         }
     }
@@ -257,7 +270,11 @@ public final class UpstreamSinglePlayerApp {
                         return;
                     }
                 }
-                playWorld(atlas, loadRequested ? null : mapFile, saveFile, customSave, custom, campaign);
+                try {
+                    playWorld(atlas, loadRequested ? null : mapFile, saveFile, customSave, custom, campaign);
+                } finally {
+                    sessionHooks.close();
+                }
                 if (!titleRequested || !returnToTitleRequested) return;
                 returnToTitleRequested = false;
                 campaignSlot = null;
@@ -302,6 +319,8 @@ public final class UpstreamSinglePlayerApp {
         weatherLayers.load();
         reportWeather();
         uploadMinimap();
+        session.ensurePlayerSpawn();
+        sessionHooks.open();
         campaignLoop:
         while (runMainLoop(saveFile)) {
             var origin = Vars.state.rules.sector;
@@ -957,7 +976,7 @@ public final class UpstreamSinglePlayerApp {
                             surface = UpstreamCampaignSurface.open(Planets.serpulo,
                                 new Fi("/romfs/planet-meshes/serpulo.m3ps"));
                             if (surface != null) Vars.content.loadColors(new Fi("/romfs/block_colors.png"));
-                        } catch (IOException failure) {
+                        } catch (IOException | RuntimeException failure) {
                             System.out.println("UPSTREAM_CAMPAIGN_SURFACE_ERROR " + failure.getMessage());
                         }
                     }
@@ -1341,6 +1360,20 @@ public final class UpstreamSinglePlayerApp {
                     }
                     moveInput.setZero();
                 } else {
+                    if (sessionHooks.canHost() && !pauseMenu.confirmingQuit()
+                            && (input & UpstreamSinglePlayerInput.R_PRESSED) != 0) {
+                        try {
+                            sessionHooks.toggleHosting();
+                            closePauseMenu();
+                        } catch (IOException failure) {
+                            System.out.println("UPSTREAM_HOST_ERROR " + failure.getMessage());
+                            UpstreamNotification.show(Core.bundle.get("server.error"), 4f);
+                            closePauseMenu();
+                        }
+                        previousTime = System.nanoTime();
+                        accumulator = 0L;
+                        continue;
+                    }
                     if ((input & UpstreamSinglePlayerInput.WAVE_PRESSED) != 0 && !pauseMenu.confirmingQuit()) {
                         if (!new UpstreamCoreDatabaseMenu(target).run()) return false;
                         previousTime = System.nanoTime();
@@ -1482,6 +1515,7 @@ public final class UpstreamSinglePlayerApp {
             }
 
             unit = session.ensurePlayerSpawn();
+            sessionHooks.tick();
             updateTelemetry(unit, input);
             render(unit);
             Thread.yield();
@@ -1812,7 +1846,7 @@ public final class UpstreamSinglePlayerApp {
         openHudSettings(Core.settings);
         settingsOpen = false;
         pauseOpen = true;
-        if (!Vars.state.isPaused()) session.togglePause();
+        if (!Vars.state.isPaused() && !sessionHooks.hosting()) session.togglePause();
         System.out.println("UPSTREAM_PAUSE_MENU open=true selected=0 options=" + pauseMenu.options());
     }
 
@@ -1856,6 +1890,10 @@ public final class UpstreamSinglePlayerApp {
             drawPauseRow(Core.bundle.get("quit.confirm"), 40f, 210f, false);
         } else {
             drawPauseRow("Y  " + Core.bundle.get("database"), 44f, 210f, false);
+            if (sessionHooks.canHost()) {
+                String action = Core.bundle.get(sessionHooks.hosting() ? "close" : "hostserver.mobile");
+                drawPauseRow("R  " + Strings.stripColors(action), 214f, 210f, false);
+            }
         }
     }
 

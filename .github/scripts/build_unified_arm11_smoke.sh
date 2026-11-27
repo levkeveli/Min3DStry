@@ -14,7 +14,7 @@ gradle_log="$RUNNER_TEMP/gradle-generate.log"
 for attempt in 1 2 3; do
   if bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime --no-daemon --console=plain \
       "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
-      "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified generateC 2>&1 | tee "$gradle_log"; then
+      "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runStockHostPacketCodecJvm generateC 2>&1 | tee "$gradle_log"; then
     break
   fi
   if [ "$attempt" -eq 3 ] || ! grep -Eq '429|Could not resolve' "$gradle_log"; then

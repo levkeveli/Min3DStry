@@ -63,8 +63,15 @@ class SmokeScopeTests(unittest.TestCase):
         self.assertFalse(scope["run_all"])
         self.assertFalse(scope["run_probes"])
         self.assertTrue(scope["run_net"])
+        self.assertFalse(scope["run_hosted_world"])
         self.assertFalse(scope["run_audio"])
         self.assertFalse(scope["run_production"])
+
+    def test_hosted_world_adapter_selects_pc_join_replay(self) -> None:
+        scope = smoke_scope.classify_smoke_scope(["src/net/mindustry_host_socket.c"], "pull_request")
+        self.assertFalse(scope["run_all"])
+        self.assertTrue(scope["run_net"])
+        self.assertTrue(scope["run_hosted_world"])
 
     def test_single_campaign_probe_pr(self) -> None:
         scope = smoke_scope.classify_smoke_scope(

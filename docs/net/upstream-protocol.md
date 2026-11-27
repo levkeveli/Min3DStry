@@ -30,6 +30,105 @@
 - **Code:** [include/net/mindustry_net.h](../../include/net/mindustry_net.h), [src/net/mindustry_net.c](../../src/net/mindustry_net.c)
 - **3DS platform adapter:** [src/platform/3ds/net_3ds.h](../../src/platform/3ds/net_3ds.h), [src/platform/3ds/net_3ds.c](../../src/platform/3ds/net_3ds.c) (`libctru` `socInit` initialized on demand with a 1 MiB aligned buffer, not allocated until networking starts; descriptor cleanup on reconnect)
 
+### Host transport
+
+The host registration and frame reader use pinned ArcNet's server order.
+The TCP listener's connection ID is sent in `RegisterTCP`. After the peer's
+UDP socket returns that ID in `RegisterUDP`, the host sends the stock
+acknowledgement over TCP. The TCP reader returns only complete incoming
+frames and leaves incomplete bytes with the caller. It applies the stock
+provider's 16 KiB incoming object-buffer bound.
+
+The host C tests cover split and coalesced frames, rejected registrations,
+and the stock acknowledgement. The nonblocking socket adapter queues TCP
+frames, receives UDP by registered endpoint, and exposes connection,
+disconnect and discovery events to the ARM11 bridge. The host listens for
+the stock direct broadcast and joins the stock multicast discovery group
+when the socket service supports it. A local loopback check
+used the unmodified v160.8 Arc client and packet serializer to complete
+registration, deliver the original `ConnectPacket` and a UDP ping, and
+disconnect. The stock world stream and gameplay dispatch through `NetServer`
+are tracked in [#713](https://github.com/levkeveli/Min3DStry/issues/713).
+
+The host packet adapter uses the original v160.8 generated packet types and
+their stock read/write methods. It selects the bundled pure-Java LZ4
+implementation directly for TeaVM. The adapter supplies the ARM
+architecture property when the runtime leaves it unset, before the bundled
+compressor initializes. The reusable packet bodies are Java
+arrays behind Arc's data streams, so the adapter holds no cached native
+address across world loads or heap collections. The unified build runs
+`runStockHostPacketCodecJvm` to exchange compressed `ConnectPacket` data
+in both directions, check byte-identical raw `StreamChunk` framing, and
+read handheld-encoded state and entity snapshots with the stock serializer.
+The hosted-world replay checks delivery on ARM11 separately.
+The host socket uses the configured peer capacity as its TCP listen backlog
+so it also builds against libctru. The unified ARM11 build emits individual
+function sections so the linker can reach generated functions beyond the
+range of an ARM branch as the stock server code increases text size.
+
+The hosted provider hands original packets to `Net.handleServerReceived`
+and queues world streams as stock `StreamBegin` and `StreamChunk` packets.
+It uses `NetworkIO.writeServerData` for LAN advertisements. The unified
+app starts the stock `NetServer` after world load and advances it each
+frame. In a loaded world, open the pause menu and press R to host or close
+the server. The game keeps simulating while guests are connected and the
+menu is open. Hold X and Y at startup or pass `--host` to host on launch.
+
+The New 3DS replay at `0f94cc2` accepted the stock Java transport and
+queued the 18,936-byte Ground Zero world. The host then threw before
+the PC read the world. `UPSTREAM_HOST_TICK_ERROR` identifies whether an
+exception came from transport polling or the original server update.
+The unified app reports the stack for an unhandled host failure.
+[Exact ARM11 replay](https://github.com/levkeveli/Min3DStry/actions/runs/45741527039/artifacts/15082593063)
+
+A focused New 3DS replay at `87bb39c` queued the original world and
+reported the exception in the stock server tick. The compact ARM11
+stack has no source names. `UPSTREAM_HOST_SYNC_ERROR` identifies the
+failing snapshot phase, and `UPSTREAM_HOST_PACKET_ERROR encode`
+identifies an outgoing packet if its serializer fails. The hosted
+world replay still runs if an independent controller replay fails.
+The build adapts the stock debug message for stream sizes to use bytes
+because TeaVM lacks the Java formatter.
+
+The New 3DS replay at `0ccd85f` got past snapshot compression. The stock
+Java transport then received 19 full 1,024-byte chunks for an advertised
+18,934-byte world. TeaVM 0.16's allocating `ByteArrayInputStream.readNBytes`
+implementation leaves the cursor in place. The host uses a bulk read into
+an exactly sized chunk to consume the stream. The stock fixture checks that
+the bytes received equal the announced size before loading the world.
+
+The hosted-world Azahar replay uses the unmodified v160.8 Java transport
+to receive a world stream. Stock `NetworkIO.loadWorld` opens the map and
+checks the player's core before the client confirms the join, waits for the
+original server's first state snapshot, and sends a chat message through the
+stock handler. It requests a live snapshot of the player's core over UDP and
+reads the reply using the original Java client handler. The replay repeats
+these checks after disconnecting and rejoining with the same stock identity.
+
+The graphical v160.8 desktop client joined the Ground Zero host in Azahar
+2126.2 New 3DS mode. It mined copper at `(126, 46)` and queued a conveyor
+at `(125, 50)`. The ARM11 host committed the conveyor at the same tile
+with rotation 0, the stock desktop received the finished placement, and
+the host released the peer slot on disconnect. The handheld uses the
+remote builder's plans for the stock preview and keeps the stock build
+beam. This replay used commit `5401c27` and ROM SHA-256
+`a0fdee63cb98b678752b0ad2aa261af037262fe48e92238ec64fcc13a0a082ec`.
+[ARM11 ROM artifact](https://github.com/levkeveli/Min3DStry/actions/runs/46043454166/artifacts/15222975748)
+
+The grouped ARM11 run at `1401321` passed both the stock Java transport
+join/rejoin and graphical v160.8 replay on the same ROM. The graphical
+client and host logs both reported the conveyor at `(125, 50)`, and the
+host log showed the peer slot released on disconnect. Both framebuffers
+were inspected. This evidence covers emulated New 3DS hosting.
+[Replay screenshots and logs](https://github.com/levkeveli/Min3DStry/actions/runs/46050081057/artifacts/15225851380) ·
+[Exact ARM11 ROM](https://github.com/levkeveli/Min3DStry/actions/runs/46050081057/artifacts/15224299432)
+
+```sh
+python3 tools/verify_upstream_hosted_world.py --rom upstream-probe.3dsx \
+  --stock-jar server-release.jar --desktop-jar Mindustry.jar \
+  --output build/hosted-world-smoke
+```
+
 1. **TCP Outer Framing:** `uint16_be payload_len` + `payload` bytes, read via stateful `TcpFrameReader` so partial headers/bodies across TCP segments and short UDP poll windows resume cleanly without dropping bytes.
 2. **ArcNet `FrameworkMessage` (`0xFE` sentinel + id):**
    - `0` `Ping(i32 id, u8 isReply)` (answered automatically across all handshake receive loops)
