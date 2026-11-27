@@ -1719,9 +1719,33 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (!barrel) {
             throw new AssertionError("Stock turret draw is missing the rotated duo barrels");
         }
+
+        var heatTile = Vars.world.tile(38, 36);
+        heatTile.setBlock(Blocks.lancer, viewer, 0);
+        var lancer = (mindustry.world.blocks.defense.turrets.Turret.TurretBuild)heatTile.build;
+        lancer.rotation = 0f;
+        lancer.heat = 1f;
+        sprites.clear();
+        layers.render(viewport, viewer, build -> build == lancer);
+        if (sprites.stream().noneMatch(sprite -> sprite.blending() == Blending.additive)) {
+            throw new AssertionError("Stock turret draw is missing the heat layer");
+        }
+        lancer.heat = 0f;
+        heatTile.setBlock(Blocks.air);
+
+        turret.liquids.clear();
+        texturedQuads = 0;
+        layers.render(viewport, viewer, build -> build == duo);
+        int dryQuads = texturedQuads;
+        turret.liquids.set(Liquids.water, 1f);
+        texturedQuads = 0;
+        layers.render(viewport, viewer, build -> build == duo);
+        boolean liquidDrawn = texturedQuads > dryQuads;
+        turret.liquids.clear();
+
         tile.setBlock(Blocks.air);
         System.out.println("UPSTREAM_TURRET_DRAW base=" + baseCount + " draw=" + sprites.size()
-            + " barrels=l,r rotation=37");
+            + " barrels=l,r heat=ok liquid=" + (liquidDrawn ? "ok" : "no-region") + " rotation=37");
     }
 
     private void verifyDynamicLight(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
