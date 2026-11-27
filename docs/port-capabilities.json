@@ -143,7 +143,7 @@
       "category": "Rendering & Assets",
       "name": "Deterministic RGBA8 Sprite Atlas Tooling",
       "weight": 3,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 4,
       "evidence": [
         "tools/build_sprite_atlas.py",
@@ -200,7 +200,7 @@
       "category": "Core Simulation",
       "name": "Deterministic Parity Trace Harness",
       "weight": 4,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 7,
       "evidence": [
         "src/sim/parity_scenario.c",
