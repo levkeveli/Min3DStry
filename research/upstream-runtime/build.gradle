@@ -169,6 +169,9 @@ if (usesWorldSources) {
     pluginsToLoad.add('port.WorldProbeSupport')
 }
 def referenceJar = file(providers.gradleProperty('referenceJar').getOrElse('server-release.jar'))
+def glacierPath = providers.gradleProperty('glacier').getOrElse('')
+def atlasPath = providers.gradleProperty('atlas').getOrElse('')
+def colorsPath = providers.gradleProperty('colors').getOrElse('')
 def sourceDir = layout.buildDirectory.dir("upstream-src/${probe}")
 def sourceFile = sourceDir.map { it.file('mindustry/logic/LogicOp.java') }
 def mapFile = sourceDir.map { it.file('mindustry/maps/GlacierFixture.java') }
@@ -413,6 +416,14 @@ if (probe in ['network-render', 'unified']) {
         dependsOn 'classes'
         classpath = sourceSets.main.runtimeClasspath
         mainClass = 'UpstreamObjectiveMarkersReference'
+    }
+    tasks.register('runLightLineJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamLightLineReference'
+        if (!glacierPath.isEmpty() && !atlasPath.isEmpty() && !colorsPath.isEmpty()) {
+            args glacierPath, atlasPath, colorsPath
+        }
     }
 }
 if (usesSinglePlayer) {
@@ -1416,6 +1427,23 @@ import port.audio.Arm11Audio;''')
         }
         renderer.lights.add(x, y, radius, color, opacity);''')
                     source = source.replace(positionLight, '        light(pos.getX(), pos.getY(), radius, color, opacity);')
+                    def lineLightDefault = '''        if(renderer == null) return;
+        renderer.lights.line(x, y, x2, y2, 30, Color.orange, 0.3f);'''
+                    def lineLightCustom = '''        if(renderer == null) return;
+        renderer.lights.line(x, y, x2, y2, stroke, tint, alpha);'''
+                    if (source.count(lineLightDefault) != 1 || source.count(lineLightCustom) != 1) {
+                        throw new GradleException('Pinned line light entry points changed')
+                    }
+                    source = source.replace(lineLightDefault, '''        if(renderer == null){
+            UpstreamBuildingLights.line(x, y, x2, y2, 30, Color.orange, 0.3f);
+            return;
+        }
+        renderer.lights.line(x, y, x2, y2, 30, Color.orange, 0.3f);''')
+                    source = source.replace(lineLightCustom, '''        if(renderer == null){
+            UpstreamBuildingLights.line(x, y, x2, y2, stroke, tint, alpha);
+            return;
+        }
+        renderer.lights.line(x, y, x2, y2, stroke, tint, alpha);''')
                     def stockUniforms = '''        Shaders.build.region = region;
         Shaders.build.progress = progress;
         Shaders.build.color.set(color);
