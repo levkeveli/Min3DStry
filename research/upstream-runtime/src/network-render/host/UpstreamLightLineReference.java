@@ -36,15 +36,16 @@ public final class UpstreamLightLineReference implements UpstreamTerrainDrawProb
         UpstreamBuildingLights.begin();
         try {
             Drawf.light(600f, 200f, 620f, 208f, 4f, Color.red, 1f);
+            if (target.quads + target.sprites != 3) {
+                throw new AssertionError("Stock line light requires a center strip and both end caps");
+            }
+            int spritesBefore = target.sprites;
             Drawf.light(610f, 210f, region, 0f, Color.green, 1f);
+            if (target.sprites != spritesBefore + 1) {
+                throw new AssertionError("Stock textured light drew no sprite");
+            }
         } finally {
             UpstreamBuildingLights.end();
-        }
-        if (target.quads == 0) {
-            throw new AssertionError("Stock line light drew no geometry");
-        }
-        if (target.sprites == 0) {
-            throw new AssertionError("Stock textured light drew no geometry");
         }
         System.out.println("UPSTREAM_LIGHT_PATHS line=ok textured=ok quads=" + target.quads
             + " sprites=" + target.sprites);
@@ -53,6 +54,11 @@ public final class UpstreamLightLineReference implements UpstreamTerrainDrawProb
     @Override public void begin(int left, int bottom, int width, int height) {}
     @Override public void end() {}
     @Override public void drawSolidQuad(float[] vertices, int offset, arc.graphics.Blending blending) {
+        throw new AssertionError("Stock light strips are textured");
+    }
+
+    @Override public void drawTexturedQuad(int page, int pageWidth, int pageHeight, float[] vertices, int offset,
+                                           arc.graphics.Blending blending) {
         quads++;
     }
 
