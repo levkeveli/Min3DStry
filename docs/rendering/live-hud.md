@@ -306,3 +306,19 @@ original Glacier view, the darkened exterior with the active core still
 visible, and the original view after the server restores the map area.
 The checks also sampled two exposed stock Core Nucleus texels through the
 localized HUD. [Screenshots and logs](https://github.com/levkeveli/Min3DStry/actions/runs/46051348802/artifacts/15225957206)
+
+### Tile shadows
+
+The shared viewport renderer samples the pinned BlockRenderer mask after
+floor and debris and before cached walls and buildings. The Citro3D texture
+uses the upstream shadow value and keeps a one-texel filtering margin around
+the viewport. Fog uses each viewing team's discovered building footprint.
+When upstream marks an attached prop or building for a custom shadow, the
+port calls its original draw method with the packaged atlas.
+
+On `264deee`, an unmodified v160.8 PC server placed and removed a large
+copper wall and a natural stone wall. The New 3DS Azahar replay matched the
+filtered edge samples and confirmed that both regions returned to their
+original color after removal. The archive contains the five captures and
+matching stock server and ARM11 logs.
+[Replay evidence](https://github.com/levkeveli/Min3DStry/actions/runs/46062758865/artifacts/15230264710)
