@@ -50,6 +50,9 @@ merge:
 - `content-database-page`: open and exit the database on hardware.
 - `ndsp-mixer-ogg-streamer`: audible DSP output from the live mixer.
 - `live-ingame-sfx-music`: audible in-game DSP output.
+- `production-power-liquids`: physical New 3DS production/power/liquid run and
+  the Old 3DS XL AppMem footprint measurement (software evidence: host JVM,
+  TeaVM C `-O0`/`-O2`, Azahar New/Old).
 
 They remain `complete` in `docs/mechanics-parity.json`; a failing physical run
 reopens the corresponding entry.
