@@ -21,6 +21,7 @@ import arc.graphics.g2d.SpriteBatch;
 import arc.graphics.g2d.TextureAtlas.AtlasRegion;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData;
 import arc.graphics.g2d.TextureRegion;
+import arc.math.geom.Vec2;
 import arc.mock.MockAudio;
 import arc.mock.MockGraphics;
 import arc.struct.Seq;
@@ -41,10 +42,17 @@ import mindustry.Vars;
 import mindustry.ui.Fonts;
 import mindustry.ai.BlockIndexer;
 import mindustry.content.Blocks;
+import mindustry.content.Fx;
 import mindustry.content.Items;
 import mindustry.content.Liquids;
 import mindustry.content.UnitTypes;
 import mindustry.ctype.ContentType;
+import mindustry.entities.bullet.BulletType;
+import mindustry.entities.bullet.ContinuousLaserBulletType;
+import mindustry.entities.bullet.LaserBoltBulletType;
+import mindustry.entities.bullet.LaserBulletType;
+import mindustry.entities.bullet.PointLaserBulletType;
+import mindustry.entities.bullet.ShrapnelBulletType;
 import mindustry.entities.units.BuildPlan;
 import mindustry.gen.Builderc;
 import mindustry.gen.Building;
@@ -53,6 +61,7 @@ import mindustry.gen.Payloadc;
 import mindustry.gen.BlockUnitc;
 import mindustry.gen.Crawlc;
 import mindustry.gen.DisplayCmd;
+import mindustry.gen.EffectCallPacket;
 import mindustry.gen.Player;
 import mindustry.gen.Tankc;
 import mindustry.gen.UnitWaterMove;
@@ -73,6 +82,11 @@ import mindustry.world.Block;
 import mindustry.world.blocks.defense.OverdriveProjector.OverdriveBuild;
 import mindustry.world.blocks.defense.ShockwaveTower.ShockwaveTowerBuild;
 import mindustry.world.blocks.defense.turrets.BaseTurret;
+import mindustry.world.blocks.defense.turrets.ContinuousTurret;
+import mindustry.world.blocks.defense.turrets.ItemTurret;
+import mindustry.world.blocks.defense.turrets.LiquidTurret;
+import mindustry.world.blocks.defense.turrets.PayloadAmmoTurret;
+import mindustry.world.blocks.defense.turrets.PowerTurret;
 import mindustry.world.blocks.defense.turrets.ReloadTurret;
 import mindustry.world.blocks.power.LightBlock;
 import mindustry.world.blocks.production.BeamDrill;
@@ -255,6 +269,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         if (args.length >= 5) verifyClientProcessor(new Fi(args[4]), viewer);
         if (args.length == 7) target.verifyLogicDisplay(new Fi(args[5]), new Fi(args[6]), viewer);
         target.verifyUnitProjectiles(viewport, viewer);
+        target.verifyClientEffects(viewport);
+        target.verifyTurretBeamBullets(viewport, viewer);
         verifyPositionalAudioDispatch();
         Arm11AudioReference.verifyStockRegistry();
         UpstreamPuddleReference.verify();
@@ -337,7 +353,113 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         System.out.println("UPSTREAM_ORIGINAL_PROJECTILES gamma=burst dagger=remote atlas=ok trail=ok release=ok");
     }
 
+    private void verifyClientEffects(UpstreamTerrainDrawProbe.Viewport viewport) {
+        Vars.net.setClientConnected();
+        UpstreamClientEffects.load();
+        viewport.moveTo(73, 20);
+        UpstreamClientEffects.follow(viewport);
+        Groups.effect.clear();
+        var lightning = Seq.with(new Vec2(600f, 200f), new Vec2(624f, 208f), new Vec2(640f, 196f));
+        Fx.lightning.at(600f, 200f, 0f, Color.white, lightning);
+        Fx.explosion.at(632f, 200f);
+        if (Groups.effect.size() < 2) {
+            throw new AssertionError("Stock effects did not enter Groups.effect: " + Groups.effect.size());
+        }
+        float oldDelta = Time.delta;
+        try {
+            Time.delta = 1f;
+            UpstreamClientEffects.update();
+            UpstreamClientEffects.update();
+            sprites.clear();
+            solidQuads.clear();
+            int drawn = UpstreamClientEffects.draw(viewport);
+            if (drawn < 2 || (sprites.isEmpty() && solidQuads.isEmpty())) {
+                throw new AssertionError("Stock effects did not draw: drawn=" + drawn
+                    + " sprites=" + sprites.size() + " quads=" + solidQuads.size());
+            }
+            var packet = new EffectCallPacket();
+            packet.effect = Fx.explosion;
+            packet.x = 648f;
+            packet.y = 200f;
+            packet.rotation = 0f;
+            packet.color = Color.white;
+            int before = Groups.effect.size();
+            packet.handleClient();
+            if (Groups.effect.size() <= before) {
+                throw new AssertionError("Stock EffectCallPacket did not create a client effect");
+            }
+            for (int i = 0; i < 200; i++) {
+                Time.delta = 1f;
+                UpstreamClientEffects.update();
+            }
+            if (!Groups.effect.isEmpty()) {
+                throw new AssertionError("Stock effects did not expire: " + Groups.effect.size());
+            }
+            System.out.println("UPSTREAM_CLIENT_EFFECTS lightning=arc explosion=impact draw=" + drawn
+                + " packet=ok cleanup=ok");
+        } finally {
+            Time.delta = oldDelta;
+            Groups.effect.clear();
+        }
+    }
 
+    private void verifyTurretBeamBullets(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer) {
+        viewport.moveTo(73, 20);
+        UpstreamClientEffects.follow(viewport);
+        var owner = UnitTypes.dagger.spawn(viewer, 600f, 200f, 0f);
+        float oldDelta = Time.delta;
+        var tested = new StringBuilder();
+        try {
+            Time.delta = 1f;
+            var candidates = new java.util.LinkedHashSet<BulletType>();
+            for (var block : Vars.content.blocks()) {
+                if (block instanceof PowerTurret turret && turret.shootType != null) {
+                    candidates.add(turret.shootType);
+                }
+                if (block instanceof ContinuousTurret turret && turret.shootType != null) {
+                    candidates.add(turret.shootType);
+                }
+                if (block instanceof ItemTurret turret) {
+                    for (var bullet : turret.ammoTypes.values()) if (bullet != null) candidates.add(bullet);
+                }
+                if (block instanceof LiquidTurret turret) {
+                    for (var bullet : turret.ammoTypes.values()) if (bullet != null) candidates.add(bullet);
+                }
+                if (block instanceof PayloadAmmoTurret turret) {
+                    for (var bullet : turret.ammoTypes.values()) if (bullet != null) candidates.add(bullet);
+                }
+            }
+            for (var type : candidates) {
+                String kind = type instanceof LaserBulletType ? "laser"
+                    : type instanceof LaserBoltBulletType ? "laserbolt"
+                    : type instanceof ContinuousLaserBulletType ? "continuous"
+                    : type instanceof ShrapnelBulletType ? "shrapnel"
+                    : type instanceof PointLaserBulletType ? "pointlaser" : null;
+                if (kind == null) continue;
+                Groups.bullet.clear();
+                var bullet = type.create(owner, viewer, 600f, 200f, 0f);
+                if (bullet == null) {
+                    throw new AssertionError("Stock " + kind + " bullet did not create: "
+                        + type.getClass().getName());
+                }
+                UpstreamClientProjectiles.update();
+                sprites.clear();
+                solidQuads.clear();
+                int drawn = UpstreamClientProjectiles.draw(viewport);
+                if (drawn < 1 || (sprites.isEmpty() && solidQuads.isEmpty())) {
+                    throw new AssertionError("Stock " + kind + " bullet did not draw: "
+                        + type.getClass().getName() + " drawn=" + drawn
+                        + " sprites=" + sprites.size() + " quads=" + solidQuads.size());
+                }
+                tested.append(tested.length() == 0 ? "" : ",").append(kind);
+            }
+        } finally {
+            Time.delta = oldDelta;
+            Groups.bullet.clear();
+        }
+        if (tested.length() == 0) throw new AssertionError("No stock turret beam bullet types were verified");
+        System.out.println("UPSTREAM_TURRET_BEAMS tested=" + tested);
+    }
     private void verifyFactory(UpstreamTerrainDrawProbe.Viewport viewport) {
         for (var block : Vars.content.blocks()) {
             if (!(block instanceof UnitFactory factory)) continue;
@@ -1077,7 +1199,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             if (cargo.unit.isAdded() || cargo.unit.type() != type || cargo.unit.team() != team
                     || cargo.unit.elevation() != original.elevation() || cargo.rotation() != 90f
                     || Math.abs(cargo.x() - belt.x) > 0.001f || Math.abs(cargo.y() - belt.y + 6f) > 0.001f) {
-                throw new AssertionError("Stock unit payload state differed for " + type.name);
+                throw new AssertionError("Stock unit payload state differed for " + type.getClass().getSimpleName());
             }
             requireRegion(type.region);
             requireRegion(type.cellRegion);
@@ -1108,7 +1230,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             // Stock BlockUnit proxies belong to buildings and cannot be added to Groups.unit.
             if (type.sample instanceof BlockUnitc) continue;
             if (!UpstreamRenderedNetworkProbe.loadUnitGraphics(type)) {
-                throw new AssertionError("Could not load stock unit " + type.name);
+                throw new AssertionError("Could not load stock unit " + type.getClass().getSimpleName());
             }
             var unit = type.spawn(Team.crux, 300f, 288f, 90f);
             for (var mount : unit.mounts) mount.heat = 1f;
@@ -1238,7 +1360,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             UpstreamRenderedNetworkProbe.advanceTankTreads(tank);
             UpstreamRenderedNetworkProbe.advanceTankTreads(tank);
             if (tank.treadTime() != 5f || unit.x != 243f || unit.y != 292f) {
-                throw new AssertionError("Unexpected stock tread distance for " + type.name);
+                throw new AssertionError("Unexpected stock tread distance for " + type.getClass().getSimpleName());
             }
             sprites.clear();
             Draw.sort(true);
@@ -1247,7 +1369,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             for (var strip : type.treadRegions) {
                 var expected = strip[5 % type.treadFrames];
                 if (sprites.stream().filter(sprite -> matchesRegion(sprite, expected)).count() != 2) {
-                    throw new AssertionError("Missing both stock tread sides for " + type.name);
+                    throw new AssertionError("Missing both stock tread sides for " + type.getClass().getSimpleName());
                 }
             }
             unit.remove();
