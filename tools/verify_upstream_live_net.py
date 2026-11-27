@@ -1719,13 +1719,15 @@ def run_model(args, model, config, original_config, log, output):
         )
         try:
             rules = "sandbox" if args.combat else "survival" if args.map_spawn else "attack"
-            if args.controls_replay and not (stationary or args.server_kick):
-                # verify_controls requests the next stock wave after both inputs settle.
-                # Slow title and emulator startup can otherwise start combat mid-replay.
-                server.stdin.write("rules add waveTimer false\n")
             server.stdin.write(f"config port {args.port}\nhost {map_name.replace(' ', '_')} {rules}\n")
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
+            if args.controls_replay and not (stationary or args.server_kick):
+                # verify_controls requests the next stock wave after both inputs settle.
+                server.stdin.write("rules add waveTimer false\n"
+                                   'js "UPSTREAM_CONTROLS_SETUP waveTimer=" + Vars.state.rules.waveTimer\n')
+                server.stdin.flush()
+                wait_for(server_log, server, r"UPSTREAM_CONTROLS_SETUP waveTimer=false\b", 10)
             world_size = (150, 250)
             if args.verify_canvas or args.verify_canvas_quads or args.verify_client_processor:
                 small_column = PROCESSOR_CANVAS_COLUMN if args.verify_client_processor else 77
