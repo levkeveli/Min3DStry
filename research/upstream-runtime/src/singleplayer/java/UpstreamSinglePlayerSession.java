@@ -985,6 +985,11 @@ public final class UpstreamSinglePlayerSession {
                 throw new IllegalStateException("Save/reload mismatch after Ground Zero .msav load");
             }
             String fingerprint = UpstreamWorldLoadProbe.reportTerrain(false);
+            if (!saveFile.exists() || saveFile.length() == 0) {
+                throw new IllegalStateException("The quick-save did not reach disk");
+            }
+            System.out.println("UPSTREAM_SP_CONTROLS pause=ok pauseDisabled=ok wave=" + Vars.state.wave
+                + " save=ok reload=ok");
             System.out.println("UPSTREAM_SP_SIM_PASS world=256x256 mine=" + mineTicks + ":" + minedCopper
                 + " build=conveyor+wall deconstruct=air pause=" + pausedBefore
                 + " wave=2 enemies=" + preReloadEnemies + " copper=" + preReloadCopper

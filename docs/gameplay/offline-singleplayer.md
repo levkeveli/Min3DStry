@@ -24,6 +24,23 @@ matched JVM and generated C at both `-O0` and `-Os`. It exercised mining,
 building, deconstruction, pause, an enemy wave and save/reload, with the same
 final world fingerprint in all three builds. This run used the host runtime.
 
+### Session controls
+
+The same probe asserts the handheld session controls on stock Ground Zero:
+pause freezes `Vars.state.updateId` for 30 ticks and resume continues, the
+pause-disabled rule keeps the simulation running, the wave trigger spawns wave 1
+and reaches wave 2 with an advancing enemy, and the quick-save writes a non-empty
+`.msav` that reloads to the same wave, core copper and enemy count.
+
+```bash
+./gradlew -p research/upstream-runtime -Pprobe=singleplayer-sim runProbeJvm \
+  --args=/path/to/groundZero.msav /tmp/sp-save.msav
+UPSTREAM_SP_CONTROLS pause=ok pauseDisabled=ok wave=2 save=ok reload=ok
+```
+
+The singleplayer baseline job greps that marker next to `UPSTREAM_SP_SIM_PASS`.
+
+
 ## Weather in the graphical campaign
 
 The graphical campaign uses the v160.8 weather entities, particle and debris
