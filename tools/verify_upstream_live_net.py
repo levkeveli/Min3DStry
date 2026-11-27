@@ -241,7 +241,7 @@ def wait_for(path, proc, pattern, timeout):
         # The stock server can color individual values inside a log line.
         if re.search(pattern, re.sub(r"\x1b\[[0-9;]*m", "", text)):
             return text
-        if "UPSTREAM_LIVE_NET_ERROR" in text:
+        if "UPSTREAM_LIVE_NET_ERROR" in text or "UPSTREAM_SP_ERROR" in text:
             time.sleep(0.25)  # Preserve the Java stack trace written after the error marker.
             text = path.read_text(encoding="utf-8", errors="replace")
             raise RuntimeError(f"Process stopped before {pattern}:\n{text[-5000:]}")

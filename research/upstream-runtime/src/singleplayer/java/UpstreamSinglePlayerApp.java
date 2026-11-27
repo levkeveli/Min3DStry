@@ -182,6 +182,8 @@ public final class UpstreamSinglePlayerApp {
         Fi atlas = firstExisting("/romfs/sprites.aatls", "/3ds/min3dstry/sprites.aatls");
         Fi mapDir = saveFile.parent() != null ? saveFile.parent() : new Fi("/3ds/min3dstry");
         var settings = UpstreamSinglePlayerSession.loadSettings(mapDir);
+        // Upstream title services such as ServerGroup read these preferences before a world opens.
+        Core.settings = settings;
         Fi preference = new Fi("/3ds/min3dstry/locale.txt");
         String requested = requestedLocale(preference, settings);
 
