@@ -21,6 +21,7 @@ import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.gen.Building;
 import mindustry.graphics.CacheLayer;
+import mindustry.graphics.Layer;
 import mindustry.world.Tile;
 import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.units.UnitCargoLoader;
@@ -166,6 +167,7 @@ public final class UpstreamTerrainDrawProbe {
         private int height = zoomHeight(1f);
         private float zoom = 1f;
         private final TerrainBatch batch;
+        private final Seq<Tile> customShadows = new Seq<>();
         private byte[] tileShadows;
         private byte[] darkness;
         private final boolean drawStaticBlocks;
@@ -253,16 +255,25 @@ public final class UpstreamTerrainDrawProbe {
             Draw.z(0f);
             int top = Math.min(bottom + height, Vars.world.height());
             int right = Math.min(left + width, Vars.world.width());
+            customShadows.clear();
             for (int y = bottom; y < top; y++) {
                 for (int x = left; x < right; x++) {
                     Tile tile = Vars.world.tile(x, y);
                     tile.floor().drawBase(tile);
+                    if (drawStaticBlocks && tile.build == null && tile.block().customShadow
+                            && tile.block().cacheLayer == CacheLayer.normal) {
+                        customShadows.add(tile);
+                    }
                 }
             }
             if (debris != null) debris.run();
             if (drawStaticBlocks) {
                 // Stock BlockRenderer draws this mask at Layer.block - 1.
                 drawTileShadows(right - left, top - bottom);
+                Draw.reset();
+                Draw.z(Layer.block - 1);
+                for (Tile tile : customShadows) tile.block().drawShadow(tile);
+                Draw.z(Layer.block);
                 for (int y = bottom; y < top; y++) {
                     for (int x = left; x < right; x++) {
                         Tile tile = Vars.world.tile(x, y);

@@ -21,6 +21,7 @@ import arc.graphics.g2d.SpriteBatch;
 import arc.graphics.g2d.TextureAtlas.AtlasRegion;
 import arc.graphics.g2d.TextureAtlas.TextureAtlasData;
 import arc.graphics.g2d.TextureRegion;
+import arc.math.Mathf;
 import arc.math.geom.Vec2;
 import arc.mock.MockAudio;
 import arc.mock.MockGraphics;
@@ -75,6 +76,7 @@ import mindustry.game.MapObjectives.BuildCountObjective;
 import mindustry.game.MapObjectives.ItemObjective;
 import mindustry.game.MapObjectives.QuadMarker;
 import mindustry.game.MapObjectives.TextureMarker;
+import mindustry.graphics.BlockRenderer;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
@@ -181,7 +183,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         var target = new UpstreamBuildingLayersReference();
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         verifyLiveChatInput();
-        verifyWorldTileShadows();
+        target.verifyWorldTileShadows(viewport);
         verifyWorldDarkness();
         target.verifyArcOrder();
         target.verifyTexturedLine();
@@ -282,7 +284,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         UpstreamWeatherLayersReference.verify();
     }
 
-    private static void verifyWorldTileShadows() {
+    private void verifyWorldTileShadows(UpstreamTerrainDrawProbe.Viewport viewport) {
         var previousWorld = Vars.world;
         var previousRules = Vars.state.rules;
         var world = new mindustry.core.World();
@@ -296,9 +298,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         var terrain = world.tile(4, 6);
         byte[] alpha = new byte[4 * 4];
         try {
-            for (int y = 4; y <= 7; y++) {
-                for (int x = 4; x <= 7; x++) world.tile(x, y).setFloor(Blocks.stone.asFloor());
-            }
+            for (var tile : world.tiles) tile.setFloor(Blocks.stone.asFloor());
             wall.setBlock(Blocks.copperWallLarge, Team.sharded);
             terrain.setBlock(Blocks.stoneWall);
             if (!UpstreamTileShadows.sample(world, rules, Team.sharded, 5, 5, 2, 2, alpha)
@@ -345,7 +345,29 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
                 rules.fog = false;
                 Vars.fogControl = previousFog;
             }
-            System.out.println("UPSTREAM_TILE_SHADOW alpha=182 footprint=4 terrain=margin removed=ok fog=team-memory");
+            var prop = world.tile(7, 7);
+            prop.setBlock(Blocks.arkyicBoulder);
+            var block = prop.block();
+            int variant = Mathf.randomSeed(prop.pos(), 0, block.variants - 1);
+            var shadowRegion = block.variantShadowRegions[variant];
+            var propRegion = block.variantRegions[variant];
+            viewport.moveTo(0, 0);
+            sprites.clear();
+            viewport.draw(() -> {});
+            Sprite shadow = null;
+            Sprite body = null;
+            for (var sprite : sprites) {
+                if (sprite.x() != prop.worldx() || sprite.y() != prop.worldy()) continue;
+                if (matchesRegion(sprite, shadowRegion)) shadow = sprite;
+                if (matchesRegion(sprite, propRegion)) body = sprite;
+            }
+            int color = Color.floatToIntColor(BlockRenderer.shadowColor.toFloatBits());
+            if (shadow == null || body == null || shadow.color() != color
+                    || sprites.indexOf(shadow) >= sprites.indexOf(body)) {
+                throw new AssertionError("The stock arkyic boulder shadow did not precede its original sprite");
+            }
+            sprites.clear();
+            System.out.println("UPSTREAM_TILE_SHADOW alpha=182 footprint=4 terrain=margin removed=ok fog=team-memory custom=arkyic-boulder");
         } finally {
             wall.setBlock(Blocks.air);
             Vars.state.rules = previousRules;

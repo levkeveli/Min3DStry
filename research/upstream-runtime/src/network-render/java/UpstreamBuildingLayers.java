@@ -102,6 +102,10 @@ final class UpstreamBuildingLayers {
                     Draw.z(Layer.block);
                     block.drawBase(build.tile);
                     Draw.reset();
+                    if (block.customShadow) {
+                        Draw.z(Layer.block - 1);
+                        block.drawShadow(build.tile);
+                    }
                     drawCracks(build);
                     Draw.z(Layer.block);
                     if (build.team != viewer && block.drawTeamOverlay) build.drawTeam();
