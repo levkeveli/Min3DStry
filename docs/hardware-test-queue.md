@@ -40,6 +40,20 @@ The procedure and evidence schema are in
 `live-arm11` (or complete) and the remaining implementation gaps are closed.**
 The artifact below is staged for that point; it is not an active test request.
 
+## Software-complete residue
+
+These mechanics are complete on software evidence. Only the physical-console
+confirmation is outstanding, so it must not hold the software gauges or a
+merge:
+
+- `content-catalog-init`: physical >= 24 FPS with the full content catalog.
+- `content-database-page`: open and exit the database on hardware.
+- `ndsp-mixer-ogg-streamer`: audible DSP output from the live mixer.
+- `live-ingame-sfx-music`: audible in-game DSP output.
+
+They remain `complete` in `docs/mechanics-parity.json`; a failing physical run
+reopens the corresponding entry.
+
 ## Handoff protocol
 
 1. Build from a merged `main` commit, record `git rev-parse HEAD`, and hash the
