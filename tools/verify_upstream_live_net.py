@@ -604,6 +604,43 @@ def verify_touch_config(log, emulator, server_log, server, timeout, capture, pos
     print("Stock server verified Copper, returned Lead, and accepted clearing the Sorter.", flush=True)
 
 
+def verify_tile_shadows(log, emulator, server_log, server, rpc, output, model, timeout):
+    wait_for(log, emulator, r"UPSTREAM_NETWORK_FRAME unit=\d+ left=73 bottom=20\b", timeout)
+    points = ((295, 160), (115, 170), (245, 175))
+
+    def capture(phase, expected=None):
+        return capture_marker_pixels(rpc, output, model, f"tile-shadow-{phase}",
+                                     points, timeout, expected, tolerance=4)
+
+    baseline = capture("clear")
+    if min(max(pixel) for pixel in baseline) < 80:
+        raise AssertionError(f"Tile shadow fixture is obscured: {baseline}")
+
+    # A texel center is 10 screen pixels inside the tile. At each sample's
+    # half-pixel coordinate the stock linear filter sees 5.5/20 coverage
+    # from the first shadow texel. The packed stock mask alpha is 182.
+    shadow_mix = 1 - (182 / 255) * (5.5 / 20)
+    for index, (name, tile_x, tile_y, block) in enumerate((
+        ("building", 86, 23, "copperWallLarge"),
+        ("terrain", 77, 23, "stoneWall"),
+    )):
+        tile = f"Vars.world.tile({tile_x},{tile_y})"
+        send_marker_phase(server_log, server, f"{name}-shadow-placed",
+            f"const tile={tile}; Call.constructFinish(tile,Blocks.{block},null,0,Vars.state.rules.defaultTeam,null); "
+            f'if(tile.block()!==Blocks.{block}) throw "Stock tile placement did not apply";')
+        if name == "building":
+            wait_for(log, emulator, r"UPSTREAM_LIVE_BUILD block=copper-wall-large x=86 y=23\b", timeout)
+        expected = list(baseline)
+        expected[index] = tuple(round(channel * shadow_mix) for channel in baseline[index])
+        capture(name, tuple(expected))
+        send_marker_phase(server_log, server, f"{name}-shadow-removed",
+            f"const tile={tile}; Call.deconstructFinish(tile,Blocks.{block},null); "
+            'if(tile.block()!==Blocks.air) throw "Stock tile removal did not apply";')
+        wait_for(log, emulator, rf"UPSTREAM_LIVE_REMOVED x={tile_x} y={tile_y}\b", timeout)
+        capture(f"{name}-removed", baseline)
+    print(f"{model}: stock tile shadows interpolate and clear after building and terrain removal.", flush=True)
+
+
 def verify_world_darkness(log, emulator, server_log, server, rpc, output, model, timeout):
     wait_for(log, emulator, r"UPSTREAM_NETWORK_FRAME unit=\d+ left=\d+ bottom=\d+", timeout)
     outside = ((80, 149), (122, 174), (152, 196))
@@ -1735,7 +1772,7 @@ def run_model(args, model, config, original_config, log, output):
                   or args.verify_logic_markers or args.verify_texture_markers or args.verify_quad_markers or args.verify_canvas
                   or args.verify_canvas_quads or args.verify_client_processor or args.verify_logic_displays
                   or args.verify_display_markers or args.verify_puddles or args.verify_weather_layers
-                  or args.verify_chat)
+                  or args.verify_chat or args.tile_shadows)
     map_name = args.map_spawn or "Glacier"
     overrides = {
         "Miscellaneous": {"log_filter": "*:Info Debug.Emulated:Debug Service.SOC:Debug",
@@ -1774,6 +1811,14 @@ def run_model(args, model, config, original_config, log, output):
             server.stdin.flush()
             wait_for(server_log, server, f"Opened a server on port {args.port}\\.", 25)
             world_size = (150, 250)
+            if args.tile_shadows:
+                send_marker_phase(server_log, server, "tile-shadow-fixture",
+                    "Vars.state.rules.waves=false; Vars.state.rules.fog=false; "
+                    "for(let x=75;x<=88;x++) { if(x>79 && x<84) continue; "
+                    "for(let y=21;y<=25;y++) { "
+                    "const tile=Vars.world.tile(x,y); "
+                    'if(tile.build!=null) throw "Tile shadow fixture overlaps a building"; '
+                    "tile.setBlock(Blocks.air); tile.setFloor(Blocks.ice); tile.setOverlay(Blocks.air); }}")
             if args.verify_canvas or args.verify_canvas_quads or args.verify_client_processor:
                 small_column = PROCESSOR_CANVAS_COLUMN if args.verify_client_processor else 77
                 load_canvas_fixture(server_log, server, offscreen=args.verify_canvas_quads, small_column=small_column)
@@ -2129,6 +2174,8 @@ def run_model(args, model, config, original_config, log, output):
                         if args.building_layers:
                             phase = "building-cracks" if args.building_cracks else "building-layers"
                         capture(phase, spawn)
+                        if args.tile_shadows:
+                            verify_tile_shadows(log, emulator, server_log, server, rpc, output, model, args.timeout)
                         if args.verify_logic_markers:
                             verify_logic_markers(log, emulator, server_log, server, rpc, output, model, spawn, args.timeout)
                         if args.verify_texture_markers:
@@ -2318,6 +2365,8 @@ def main():
                         help="Check and capture the English stock disconnect notice")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
+    parser.add_argument("--tile-shadows", action="store_true",
+                        help="Verify stock building and terrain shadows after live placement and removal")
     parser.add_argument("--world-darkness", action="store_true",
                         help="Verify contracted and restored stock world darkness pixels on Glacier")
     parser.add_argument("--join-from-title", action="store_true",
@@ -2422,6 +2471,8 @@ def main():
         parser.error("Port must be between 1 and 65535")
     if args.desktop_name is not None and (not args.desktop_name.strip() or args.desktop_name == PLAYER):
         parser.error("The PC client needs a distinct player name")
+    if args.tile_shadows and (not args.controls or args.controls_replay or not args.terrain_atlas or args.map_spawn):
+        parser.error("--tile-shadows needs stationary --controls and --terrain-atlas on Glacier")
     if args.world_darkness and (not args.controls_replay or not args.terrain_atlas):
         parser.error("--world-darkness needs --controls-replay and --terrain-atlas")
     if args.controls_replay and not args.controls:
@@ -2583,6 +2634,8 @@ def main():
     if args.terrain_atlas:
         originals[atlas_path] = atlas_path.read_bytes() if atlas_path.exists() else None
     output = args.rom.parent / "upstream-live-net"
+    if args.tile_shadows:
+        output /= "tile-shadows"
     if args.verify_objective_markers and args.locale != "en":
         output /= args.locale
     output.mkdir(parents=True, exist_ok=True)
