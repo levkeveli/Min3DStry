@@ -2,6 +2,17 @@ name: Verify large campaign maps and backups on New 3DS
 
 on:
   workflow_dispatch:
+    inputs:
+      sector:
+        description: Stock campaign replay to run
+        type: choice
+        default: all
+        options:
+          - all
+          - serpulo-242
+          - littoral-shipyard
+          - origin
+          - frozen-forest-recovery
 
 permissions:
   contents: read
@@ -59,7 +70,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sector: [serpulo-242, littoral-shipyard, origin, frozen-forest-recovery]
+        sector: ${{ fromJSON(inputs.sector == 'all' && '["serpulo-242","littoral-shipyard","origin","frozen-forest-recovery"]' || format('["{0}"]', inputs.sector)) }}
     steps:
       - uses: actions/checkout@v4
         with:
