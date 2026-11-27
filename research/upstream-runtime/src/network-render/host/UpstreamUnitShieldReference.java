@@ -1,11 +1,16 @@
 import arc.Core;
 import arc.files.Fi;
+import arc.util.Time;
 import mindustry.Vars;
 import mindustry.ai.BlockIndexer;
 import mindustry.entities.abilities.Ability;
+import mindustry.entities.abilities.ArmorPlateAbility;
 import mindustry.entities.abilities.EnergyFieldAbility;
 import mindustry.entities.abilities.ForceFieldAbility;
+import mindustry.entities.abilities.MoveLightningAbility;
+import mindustry.entities.abilities.ShieldArcAbility;
 import mindustry.entities.abilities.SuppressionFieldAbility;
+import mindustry.entities.abilities.UnitSpawnAbility;
 import mindustry.game.Team;
 import mindustry.gen.Player;
 import mindustry.gen.Unit;
@@ -19,6 +24,8 @@ import port.render.UpstreamFluidAtlas;
  */
 public final class UpstreamUnitShieldReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private int solidQuads;
+    private int sprites;
+    private int unitBuilds;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3) {
@@ -34,30 +41,33 @@ public final class UpstreamUnitShieldReference implements UpstreamTerrainDrawPro
         viewport.moveTo(73, 20);
         Vars.player = Player.create();
         Vars.player.team(Team.sharded);
+        Time.delta = 1f;
 
-        UnitType force = find(ForceFieldAbility.class, "ForceFieldAbility");
-        UnitType energy = find(EnergyFieldAbility.class, "EnergyFieldAbility");
-        UnitType suppress = find(SuppressionFieldAbility.class, "SuppressionFieldAbility");
-
-        int forceQuads = draw(target, force);
-        int energyQuads = draw(target, energy);
-        int suppressQuads = draw(target, suppress);
-        if (forceQuads <= 0 || energyQuads <= 0 || suppressQuads <= 0) {
-            throw new AssertionError("Stock ability draw missing geometry: force=" + forceQuads
-                + " energy=" + energyQuads + " suppress=" + suppressQuads);
+        var result = new StringBuilder();
+        for (var cls : new Class<?>[]{ForceFieldAbility.class, EnergyFieldAbility.class,
+                SuppressionFieldAbility.class, ArmorPlateAbility.class, ShieldArcAbility.class,
+                UnitSpawnAbility.class, MoveLightningAbility.class}) {
+            UnitType type = find(cls);
+            if (type == null) continue;
+            int drawn = draw(target, type);
+            if (result.length() > 0) result.append(',');
+            result.append(label(cls)).append('=').append(type.name).append(':').append(drawn);
         }
-        System.out.println("UPSTREAM_UNIT_ABILITY force=" + force.name + ":" + forceQuads
-            + " energy=" + energy.name + ":" + energyQuads
-            + " suppress=" + suppress.name + ":" + suppressQuads);
+        System.out.println("UPSTREAM_UNIT_ABILITY " + result);
     }
 
-    private static UnitType find(Class<? extends Ability> cls, String label) {
+    private static String label(Class<?> cls) {
+        var name = cls.getSimpleName();
+        return name.endsWith("Ability") ? name.substring(0, name.length() - 7).toLowerCase() : name;
+    }
+
+    private static UnitType find(Class<?> cls) {
         for (var candidate : Vars.content.units()) {
             for (var ability : candidate.abilities) {
                 if (cls.isInstance(ability)) return candidate;
             }
         }
-        throw new AssertionError("No stock unit has a " + label);
+        return null;
     }
 
     private static int draw(UpstreamUnitShieldReference target, UnitType type) {
@@ -66,9 +76,17 @@ public final class UpstreamUnitShieldReference implements UpstreamTerrainDrawPro
         }
         Unit unit = type.spawn(Team.sharded, 600f, 200f, 0f);
         unit.shield = 100f;
+        unit.isShooting = true;
+        unit.vel.set(3f, 0f);
+        Time.delta = 1f;
+        for (int i = 0; i < 20; i++) {
+            for (var ability : unit.abilities) ability.update(unit);
+        }
         target.solidQuads = 0;
+        target.sprites = 0;
+        target.unitBuilds = 0;
         unit.draw();
-        return target.solidQuads;
+        return target.solidQuads + target.sprites + target.unitBuilds;
     }
 
     @Override public void begin(int left, int bottom, int width, int height) {}
@@ -78,8 +96,16 @@ public final class UpstreamUnitShieldReference implements UpstreamTerrainDrawPro
     }
 
     @Override
+    public void drawUnitBuild(int page, int left, int top, int width, int height, float x, float y,
+                              float drawWidth, float drawHeight, float rotation, float progress,
+                              arc.graphics.Color tint, float alpha, float phase, int vertexColor) {
+        unitBuilds++;
+    }
+
+    @Override
     public void draw(int page, int left, int top, int width, int height, float x, float y,
                      float originX, float originY, float drawWidth, float drawHeight,
                      float rotation, int color, int mixColor, arc.graphics.Blending blending) {
+        sprites++;
     }
 }
