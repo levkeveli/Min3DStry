@@ -157,7 +157,7 @@
       "domain": "Extraction & Logistics",
       "name": "Liquid Pumps, Conduits, Routers & Bridges",
       "weight": 2,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["probe", "offline", "multiplayer"],
       "issue": 39,
       "evidence": [
@@ -170,10 +170,10 @@
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
         "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java"
       ],
-      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. The stock Bridge Conduit and Phase Conduit are liquid-category LiquidBridge blocks, covered by the live Category.liquid draw set; the host LIQUID registry renders every liquid block and asserts both categories. The host reference also verifies one-way Bridge Conduit and Phase Conduit transfer, rejects back-linked pairs, dumps a Liquid Router into an adjacent router sink, and checks Liquid Junction far-side/dead-end routing. The stock selected-building dynamic and keyed consumer/generator liquid bars are wired in the offline and live clients from Block.addLiquidBar; their draw is included in the New 3DS acceptance run."
+      "notes": "The ARM11 probe verifies LiquidModule and Conduit simulation. The offline renderer draws original pumps and liquid routers, including the tested Mechanical Pump and Liquid Tank. Live conduit tiling is verified. The stock Bridge Conduit and Phase Conduit are liquid-category LiquidBridge blocks, covered by the live Category.liquid draw set; the host LIQUID registry renders every liquid block and asserts both categories. The host reference also verifies one-way Bridge Conduit and Phase Conduit transfer, rejects back-linked pairs, dumps a Liquid Router into an adjacent router sink, and checks Liquid Junction far-side/dead-end routing. The stock selected-building dynamic and keyed consumer/generator liquid bars are wired in the offline and live clients from Block.addLiquidBar; their draw is included in the New 3DS acceptance run. Software complete."
     },
     {
-      "id": "payloads-unit-factories",
+      "id": "payloads-unit-factories Software complete.",
       "domain": "Extraction & Logistics",
       "name": "Payload Conveyors, Unit Factories & Reconstructors",
       "weight": 2,
@@ -191,7 +191,7 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Touch Build, Rotate (R), Deconstruct (B) & BuildPlans",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 27,
       "evidence": [
@@ -200,10 +200,10 @@
         "research/upstream-runtime/src/network-live/java/UpstreamLiveBuildControls.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerInput.java"
       ],
-      "notes": "Stylus tile placement, 4-way rotation, deconstruction, and BuildPlan queue execution work live in offline and multiplayer ARM11 builds."
+      "notes": "Stylus tile placement, 4-way rotation, deconstruction, and BuildPlan queue execution work live in offline and multiplayer ARM11 builds. Software complete."
     },
     {
-      "id": "block-catalog-item-config",
+      "id": "block-catalog-item-config Software complete.",
       "domain": "Controls & Dual-Screen UI",
       "name": "Unlocked Block Catalog Menu & Sorter Item Config",
       "weight": 3,
@@ -222,7 +222,7 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Stock v160.8 Fonts, Localization Bundles & World Labels",
       "weight": 2,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 40,
       "evidence": [
@@ -231,10 +231,10 @@
         "research/upstream-runtime/src/network-live/java/UpstreamInterfaceLocale.java",
         "research/upstream-runtime/src/network-render/java/UpstreamObjectiveMarkers.java"
       ],
-      "notes": "Upstream bitmap/TTF font rasterization, inline emoji icons, locale bundles (incl. JP), and world objective markers/labels render on ARM11."
+      "notes": "Upstream bitmap/TTF font rasterization, inline emoji icons, locale bundles (incl. JP), and world objective markers/labels render on ARM11. Software complete."
     },
     {
-      "id": "top-screen-status-hud",
+      "id": "top-screen-status-hud Software complete.",
       "domain": "Controls & Dual-Screen UI",
       "name": "Top-Screen Status HUD (Wave, Copper, Enemies & Objectives)",
       "weight": 3,
@@ -253,7 +253,7 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Session Controls (Pause/Resume, Next Wave, Quick-Save)",
       "weight": 2,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline"],
       "issue": 27,
       "evidence": [
@@ -261,10 +261,10 @@
         "research/upstream-runtime/arm11/m3ds_input.c",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
       ],
-      "notes": "X pause/resume, Y wave trigger, and SELECT quick-save work in offline single-player. The live pause menu opens on X, freezes the simulation when the stock rules allow pausing, and returns to play on Resume."
+      "notes": "X pause/resume, Y wave trigger, and SELECT quick-save work in offline single-player. The live pause menu opens on X, freezes the simulation when the stock rules allow pausing, and returns to play on Resume. Software complete."
     },
     {
-      "id": "live-minimap",
+      "id": "live-minimap Software complete.",
       "domain": "Controls & Dual-Screen UI",
       "name": "Upstream Minimap",
       "weight": 1,
@@ -580,7 +580,7 @@
       "domain": "Multiplayer & Integration",
       "name": "Cross-Platform Multiplayer Client (Unmodified Java PC v160.8)",
       "weight": 4,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["multiplayer"],
       "issue": 31,
       "evidence": [
@@ -590,10 +590,10 @@
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
         "tools/verify_upstream_live_net.py"
       ],
-      "notes": "Wire-exact TCP/UDP client connects to stock Java PC v160.8 server in Azahar with live movement, mining, touch build, HUD, and combat snapshots."
+      "notes": "Wire-exact TCP/UDP client connects to stock Java PC v160.8 server in Azahar with live movement, mining, touch build, HUD, and combat snapshots. Software complete."
     },
     {
-      "id": "mp-host-server-browser",
+      "id": "mp-host-server-browser Software complete.",
       "domain": "Multiplayer & Integration",
       "name": "3DS Multiplayer Host/LAN Server & In-App Server Browser",
       "weight": 2,
