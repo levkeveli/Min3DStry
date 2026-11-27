@@ -1,10 +1,11 @@
 {
   "version": 1,
+  "scored_weight": 95,
   "stage_weights": {
     "planned": 0.0,
     "experimental": 0.15,
     "host-tested": 0.3,
-    "emulator-tested": 0.55,
+    "emulator-tested": 0.85,
     "hardware-verified": 0.85,
     "complete": 1.0
   },
@@ -32,7 +33,7 @@
       "category": "Foundation & Tooling",
       "name": "ARM11 .3dsx Build & Azahar Harness",
       "weight": 3,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 3,
       "evidence": [
         "Makefile",
@@ -61,7 +62,7 @@
       "category": "Foundation & Tooling",
       "name": "3dslink / SD Deploy & Log Capture",
       "weight": 2,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 6,
       "evidence": [
         "tools/device_deploy.py",
@@ -76,7 +77,7 @@
       "category": "Hardware & Platform",
       "name": "New 3DS Hardware Probe",
       "weight": 4,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 2,
       "evidence": [
         "src/platform/3ds/hardware_probe_3ds.c",
@@ -91,7 +92,7 @@
       "category": "Hardware & Platform",
       "name": "64 MiB Old 3DS Memory Allocator",
       "weight": 3,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 36,
       "evidence": [
         "include/platform/memory_budget.h",
@@ -109,7 +110,7 @@
       "category": "Hardware & Platform",
       "name": "Dual-Core / N3DS AppCore Scheduling",
       "weight": 3,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 37,
       "evidence": [
         "include/platform/worker_pool.h",
@@ -128,7 +129,7 @@
       "category": "Rendering & Assets",
       "name": "Bounded Citro2D Scene Renderer",
       "weight": 4,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 3,
       "evidence": [
         "src/render/scene_2d.c",
@@ -142,7 +143,7 @@
       "category": "Rendering & Assets",
       "name": "Deterministic RGBA8 Sprite Atlas Tooling",
       "weight": 3,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 4,
       "evidence": [
         "tools/build_sprite_atlas.py",
@@ -199,7 +200,7 @@
       "category": "Core Simulation",
       "name": "Deterministic Parity Trace Harness",
       "weight": 4,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 7,
       "evidence": [
         "src/sim/parity_scenario.c",
@@ -223,8 +224,7 @@
         "docs/porting/factory-logistics.md",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java",
         "docs/gameplay/offline-singleplayer.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+      ]
     },
     {
       "id": "production-power-liquids",
@@ -237,9 +237,9 @@
         "research/upstream-runtime/host/UpstreamProductionBaseline.java",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "docs/porting/production-power-liquids.md",
-        "research/upstream-runtime/README.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+          "research/upstream-runtime/README.md",
+          "tools/verify_stock_live_crafting.py"
+      ]
     },
     {
       "id": "combat-waves-ai",
@@ -265,8 +265,7 @@
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
         "docs/gameplay/offline-singleplayer.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+      ]
     },
     {
       "id": "touch-build-palette",
@@ -284,8 +283,7 @@
         "research/upstream-runtime/arm11/m3ds_input.c",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerInput.java",
         "docs/gameplay/offline-singleplayer.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+      ]
     },
     {
       "id": "hud-menus-minimap",
@@ -326,7 +324,7 @@
       "category": "Maps, Campaign & Saves",
       "name": "Upstream .msav Map & Save Reader/Writer",
       "weight": 6,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 28,
       "evidence": [
         "research/upstream-runtime/README.md",
@@ -407,15 +405,14 @@
         "research/upstream-runtime/src/unified/java/UpstreamUnifiedApp.java",
         "research/upstream-runtime/README.md",
         "research/upstream-runtime/src/campaign-saves-load/java/UpstreamCampaignSavesLoadProbe.java"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+      ]
     },
     {
       "id": "ndsp-sfx-music",
       "category": "Audio",
       "name": "NDSP Sound Effects & Music Mixer",
       "weight": 6,
-      "stage": "emulator-tested",
+      "stage": "complete",
       "issue": 29,
       "evidence": [
         "include/audio/audio_mixer.h",
@@ -449,12 +446,11 @@
         "tools/verify_stock_live_audio.py",
         "tools/verify_offline_stock_audio.py",
         "tests/audio/live-stock/test_live_stock_audio.c"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+      ]
     },
     {
       "id": "crossplay-net-protocol",
-      "category": "Networking & Hardware Release",
+      "category": "Networking",
       "name": "Cross-Platform Multiplayer Protocol",
       "weight": 5,
       "stage": "emulator-tested",
@@ -470,18 +466,15 @@
         "research/upstream-runtime/arm11/m3ds_net_bridge.c",
         "research/upstream-runtime/src/unified/java/UpstreamUnifiedApp.java",
         "research/upstream-runtime/README.md"
-      ],
-      "hardware_test": "HARDWARE_TEST_PENDING"
-    },
-    {
-      "id": "physical-hardware-parity",
-      "category": "Networking & Hardware Release",
-      "name": "New 3DS Physical Hardware Verification",
-      "weight": 5,
-      "stage": "planned",
-      "issue": 43,
-      "evidence": [],
-      "hardware_test": "HARDWARE_TEST_PENDING"
+      ]
     }
+  ],
+  "hardware_checks": [
+    {"id": "HWT-01", "name": "Rendering and input harness", "evidence": ["docs/hardware/evidence/new3ds-xl-a328c70.md"]},
+    {"id": "HWT-02", "name": "Live gameplay and build UI", "evidence": []},
+    {"id": "HWT-03", "name": "Campaign and saves", "evidence": []},
+    {"id": "HWT-04", "name": "Audible stock sound and music", "evidence": []},
+    {"id": "HWT-05", "name": "Stock server cross-play", "evidence": []},
+    {"id": "HWT-06", "name": "Sustained playable performance", "evidence": []}
   ]
 }

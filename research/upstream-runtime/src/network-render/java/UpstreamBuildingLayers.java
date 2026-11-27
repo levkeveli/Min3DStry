@@ -15,6 +15,7 @@ import mindustry.graphics.Layer;
 import mindustry.type.Category;
 import mindustry.type.UnitType;
 import mindustry.world.Block;
+import mindustry.world.blocks.defense.turrets.BaseTurret;
 import mindustry.world.blocks.heat.HeatConductor;
 import mindustry.world.meta.BuildVisibility;
 import mindustry.world.blocks.liquid.LiquidRouter;
@@ -105,6 +106,7 @@ final class UpstreamBuildingLayers {
             for (var build : visible) {
                 if (!build.block.drawDynamic) drawCracks(build);
             }
+            drawTurrets(visible);
             drawLights(visible);
         } finally {
             try {
@@ -112,6 +114,16 @@ final class UpstreamBuildingLayers {
             } finally {
                 visible.clear();
             }
+        }
+    }
+
+    private static void drawTurrets(Seq<Building> visible) {
+        for (var build : visible) {
+            if (!(build.block instanceof BaseTurret)) continue;
+            build.wasVisible = true;
+            Draw.z(Layer.turret);
+            build.draw();
+            Draw.reset();
         }
     }
 

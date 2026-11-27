@@ -81,7 +81,10 @@ def main() -> None:
     if blockers:
         # A merge performed with GITHUB_TOKEN can produce no push-triggered runs.
         for filename in missing_workflows:
-            gh(repo, "workflow", "run", filename, "--ref", "main")
+            args = ["workflow", "run", filename, "--ref", "main"]
+            if filename == "upstream-arm11-smoke.yml":
+                args.extend(["-f", "full_suite=false"])
+            gh(repo, *args)
     else:
         # Label edits made with GITHUB_TOKEN do not enqueue pull_request runs.
         recheck_failed_policy_gates(repo, prs)

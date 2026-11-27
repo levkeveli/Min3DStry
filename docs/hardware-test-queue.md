@@ -20,19 +20,39 @@ Latest evidenced builds: New `a328c70` (2026-11-22, FPS PASS), New `de3e249`
 (2026-11-22), and Old `a4a9a96` (2026-11-22). Record the exact commit and ROM
 SHA-256 with every run.
 
-Latest emulator-verified build for the next hardware run: `99c7fd6b`
-(2026-11-25), ROM SHA-256
-`afca650c837f3bccd0f35aa17be84efc6acac874b9edeac285c1f87a00658a1c`
-(17,310,404 bytes). The
-[full build](https://github.com/levkeveli/Min3DStry/actions/runs/45598586204)
-passed, and the downloaded artifact passed both Azahar profiles locally
-(parity `0x53a483c7`, New 3DS 55.55 FPS, Original 55.31 FPS, nine audio clips),
-but it has not been run on hardware. This is the artifact for the first
-New 3DS-only acceptance run under
-[#663](https://github.com/levkeveli/Min3DStry/pull/663).
+Latest emulator-verified build for the next hardware run: `162e0c8e`
+(2026-11-26), ROM SHA-256
+`e257051fd49f3955a1d0f1802fe44494dc9f7f1ddd7eb9e4e1e77330bf9afb7c`
+(17,304,616 bytes). The
+[full build](https://github.com/levkeveli/Min3DStry/actions/runs/45757767933)
+passed, and the downloaded artifact passed the New 3DS Azahar profile locally
+(parity `0x53a483c7`, 53.88 FPS, nine audio clips), but it has not been run on
+hardware. This is the artifact for the New 3DS-only acceptance run under
+[#663](https://github.com/levkeveli/Min3DStry/pull/663) and
+[#681](https://github.com/levkeveli/Min3DStry/pull/681).
 The procedure and evidence schema are in
 [verification-runbook.md](hardware/verification-runbook.md) and
 [deployment-and-logs.md](hardware/deployment-and-logs.md).
+
+## Hardware hold
+
+**No new New 3DS hardware testing is scheduled until every mechanics entry is
+`live-arm11` (or complete) and the remaining implementation gaps are closed.**
+The artifact below is staged for that point; it is not an active test request.
+
+## Software-complete residue
+
+These mechanics are complete on software evidence. Only the physical-console
+confirmation is outstanding, so it must not hold the software gauges or a
+merge:
+
+- `content-catalog-init`: physical >= 24 FPS with the full content catalog.
+- `content-database-page`: open and exit the database on hardware.
+- `ndsp-mixer-ogg-streamer`: audible DSP output from the live mixer.
+- `live-ingame-sfx-music`: audible in-game DSP output.
+
+They remain `complete` in `docs/mechanics-parity.json`; a failing physical run
+reopens the corresponding entry.
 
 ## Handoff protocol
 
@@ -44,13 +64,15 @@ The procedure and evidence schema are in
 4. Ingest with `python3 tools/hw_evidence.py ... --strict --out
    docs/hardware/evidence/<target>-<sha>.md`.
 5. Attach the evidence file, raw log, console details and screenshots to a PR
-   or to issue #43. Then remove `"hardware_test": "HARDWARE_TEST_PENDING"` from
-   the proven capabilities in `docs/port-capabilities.json`, update their
-   `stage`, and regenerate the gauge.
+   or to issue #43. Add the New 3DS evidence path to the corresponding
+   `hardware_checks` entry in `docs/port-capabilities.json` once the entire
+   card passes, then run `python3 tools/port_progress.py --write-svg`. The
+   hardware gauge counts each HWT card once. Software and mechanics scores
+   are independent of these cards.
 6. If a run fails, attach the log and file a defect; do not change the ledger
    stage.
 
-Capabilities still marked `HARDWARE_TEST_PENDING`:
+Physical verification checklist and related capabilities:
 
 | Card | Capabilities |
 | --- | --- |
@@ -59,7 +81,7 @@ Capabilities still marked `HARDWARE_TEST_PENDING`:
 | HWT-03 | `campaign-sectors` |
 | HWT-04 | `ndsp-sfx-music` |
 | HWT-05 | `crossplay-net-protocol` |
-| HWT-06 | `physical-hardware-parity`; New 3DS harness FPS and 10-minute soak are verified. Full playable New 3DS acceptance is pending |
+| HWT-06 | New 3DS harness FPS and 10-minute soak are verified. Full playable New 3DS acceptance is pending |
 
 Cleared by the `de3e249` New 3DS record: `arm11-toolchain-build`,
 `memory-budget-runtime`, `threading-scheduling` and `msav-map-save-compat`.
@@ -261,8 +283,8 @@ a short listening report. Physical audio cannot be proven from Azahar.
 
 > `a328c70` logged `AUDIO backend=ndsp state=ready` with only 2 registered
 > clips; the operator heard the UI "ding", but all seven `AUDIO_EVENT`s resolved
-> to `clip=-1 voice=0`. The 2026-11-25 emulator build (`99c7fd6b`,
-> SHA-256 `afca650c…`) resolves nine clips and `wave.spawn` on both Azahar
+> to `clip=-1 voice=0`. The 2026-11-26 emulator build (`162e0c8e`,
+> SHA-256 `e257051f…`) resolves nine clips and `wave.spawn` on both Azahar
 > profiles, but Azahar still reports `fallback_no_dsp`. Audible upstream effects
 > and music on physical DSP remain **NOT VERIFIED**, so `ndsp-sfx-music` stays
 > `emulator-tested`. Use this build for the retest.
@@ -283,7 +305,7 @@ log, screenshots, map/fingerprint, and the server JAR hash.
 
 ## HWT-06 — Physical parity and performance
 
-Covers `physical-hardware-parity`: the physical acceptance run for the full
+Covers the physical acceptance run for the full
 playable build on New Nintendo 3DS/2DS.
 
 **Steps:** run HWT-01/02 on New 3DS; collect `BENCH fps=...
@@ -293,12 +315,12 @@ notes.
 **Expected:** New 3DS passes HWT-01/02, stays within its application-memory
 budget, and sustains `>= 24 FPS` on a representative playable workload.
 **Evidence:** strict `hw_evidence.py` JSON/Markdown, benchmark log lines, and
-thermal/SD notes. Only this card can clear `physical-hardware-parity`.
+thermal/SD notes. Only this card verifies sustained playable performance on the hardware gauge.
 
 > New 3DS `a328c70` satisfies the harness FPS and soak half: strict 12/12 over
 > ~10 minutes, 132 `BENCH` windows, `fps_min=29.92`, `fps_max=59.84`,
 > `p95_max=33.50`, with the sector loader and parity intact. The newer
-> `afca650c` build (`99c7fd6b`) still needs a physical New 3DS run. The
+> `e257051f` build (`162e0c8e`) still needs a physical New 3DS run. The
 > `a328c70` FPS numbers apply to the earlier harness.
 >
 > At `857041e` the CI artifact `7adb4ee8...aae9` passed the New 3DS Azahar

@@ -34,7 +34,7 @@ Previous Original 3DS results are historical evidence.
 | `PARITY ... hash=0x53a483c7` | `parity-test-harness` |
 | `WORKERS ... match=1` | `threading-scheduling` |
 | `FRAME ... drop=0` | draw/cull telemetry only; visual correctness and FPS need screenshots and a `BENCH` record |
-| `BENCH fps=... p95_ms=...` | `>= 24 FPS` target (`physical-hardware-parity`) |
+| `BENCH fps=... p95_ms=...` | `>= 24 FPS` target (HWT-06) |
 | `AUDIO backend=ndsp state=ready` | NDSP init and asset load only; audible output needs the HWT-04 listening report |
 | Pad/touch interactions you perform | `touch-build-palette`, `hud-menus-minimap` |
 

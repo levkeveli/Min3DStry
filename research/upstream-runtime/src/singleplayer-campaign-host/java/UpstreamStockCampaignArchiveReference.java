@@ -253,16 +253,34 @@ public final class UpstreamStockCampaignArchiveReference {
         var build = Vars.state.rules.defaultTeam.core();
         var buildings = scratch(mindustry.gen.Building.class, "tempBuilds");
         var tiles = scratch(mindustry.world.Block.class, "tempTiles");
+        var blockBuildings = scratch(mindustry.world.Block.class, "tempBuilds");
         buildings.items[0] = build;
         buildings.size = 0; // A stale backing slot survives an ordinary Seq.clear().
         tiles.items[0] = build.tile;
+        tiles.items[1] = build.tile;
         tiles.size = 1;
+        blockBuildings.items[0] = build;
+        blockBuildings.size = 0;
+        var indexedCore = Vars.indexer.getFlagged(build.team, BlockFlag.core);
+        var indexedDamage = Vars.indexer.getDamaged(build.team);
+        var indexedFloor = Vars.indexer.getFlaggedFloors(BlockFlag.core);
+        if (!indexedCore.contains(build, true)) throw new AssertionError("Missing the original indexed core");
+        indexedDamage.add(build);
+        indexedFloor.add(build.tile);
         Vars.logic.reset();
-        if (java.util.Arrays.stream(buildings.items).anyMatch(java.util.Objects::nonNull) || !tiles.isEmpty()
-                || tiles.items[0] != null || Vars.world.width() != 0) {
+        if (hasRetiredEntries(buildings) || hasRetiredEntries(tiles) || hasRetiredEntries(blockBuildings)
+                || Vars.world.width() != 0) {
             throw new AssertionError("Stock world reset retained building or tile scratch references");
         }
-        System.out.println("UPSTREAM_CAMPAIGN_RESET_SCRATCH building=cleared tile=cleared");
+        if (!indexedCore.isEmpty() || !indexedDamage.isEmpty() || !indexedFloor.isEmpty()) {
+            throw new AssertionError("Stock reset retained an old-world building or floor index");
+        }
+        verifyCoreFlagOrder();
+        System.out.println("UPSTREAM_CAMPAIGN_RESET_SCRATCH building=cleared tile=cleared indexes=cleared");
+    }
+
+    private static boolean hasRetiredEntries(arc.struct.Seq<Object> scratch) {
+        return !scratch.isEmpty() || java.util.Arrays.stream(scratch.items).anyMatch(java.util.Objects::nonNull);
     }
 
     @SuppressWarnings("unchecked")

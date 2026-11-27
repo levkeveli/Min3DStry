@@ -68,6 +68,7 @@ public final class UpstreamRenderedNetworkProbe {
     private Unit controlled;
     private int draws;
     private boolean projectilesVisible, projectilesActive;
+    private boolean effectsVisible, effectsActive;
     private long previousVisualFrame;
     private long frameId;
     private float frameSeconds;
@@ -217,6 +218,7 @@ public final class UpstreamRenderedNetworkProbe {
         UpstreamCrackAtlas.load();
         drawableUnits.clear();
         UpstreamClientProjectiles.load();
+        UpstreamClientEffects.load();
         viewport = UpstreamTerrainDrawProbe.liveViewport(target);
         target.initialize();
         boolean stock = target.loadStockFont(locale.getLanguage().equals("ja"));
@@ -302,11 +304,13 @@ public final class UpstreamRenderedNetworkProbe {
         float delta = Math.min(frameSeconds * 60f, Vars.maxDeltaClient);
         Time.delta = delta;
         try {
+            UpstreamClientEffects.follow(viewport);
             if (!Vars.state.isPaused()) {
                 Time.update();
                 Groups.weather.update();
                 UpstreamClientLogic.update(delta);
                 UpstreamClientProjectiles.update();
+                UpstreamClientEffects.update();
             }
             weatherLayers.advance();
             Arm11Audio.updateClientAudio(now);
@@ -358,6 +362,14 @@ public final class UpstreamRenderedNetworkProbe {
             }
             projectilesVisible = bullets > 0;
             projectilesActive = active;
+            int effects = UpstreamClientEffects.draw(viewport);
+            boolean effectsActiveNow = !Groups.effect.isEmpty();
+            if (effectsVisible != (effects > 0) || effectsActive != effectsActiveNow) {
+                System.out.println("UPSTREAM_NETWORK_EFFECTS visible=" + effects
+                    + " active=" + Groups.effect.size());
+            }
+            effectsVisible = effects > 0;
+            effectsActive = effectsActiveNow;
         } finally {
             Draw.sort(false);
         }

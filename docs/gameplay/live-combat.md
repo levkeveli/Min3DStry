@@ -31,6 +31,59 @@ after firing. The same ROM passed the offline weapon replay on both
 profiles and the Original 3DS offline and live turret-possession replay.
 [ARM11 build](https://github.com/levkeveli/Min3DStry/actions/runs/45108952293)
 
+## Turret barrels
+
+Visible turrets use the stock turret drawer over the cached base. The host
+reference checks the Duo base-only versus full draw (`8 -> 16` sprites) and the
+rotated `duo-barrel-l`/`duo-barrel-r` sprites at stock rotation `37° -> -53°`.
+Ammo, liquid and heat layers come from the same drawer. Lightning arcs and
+bullet impact effects now draw through the stock EffectState group (see
+below); unit status application and recoil-specific evidence remain open.
+
+## Stock effect and beam layer
+
+The live client advances and draws the pinned `EffectState` group. Server
+`EffectCallPacket`s are decoded by the live network probe, and local `Fx`
+created by bullet hits lands in the same group, so lightning arcs,
+`LaserBulletType` impact effects and other original effects render with the
+stock `Effect` renderers instead of being discarded.
+
+The port has no desktop `Renderer`, so the upstream
+`Effect.shouldCreate()` gate is adapted through `port.render.UpstreamEffectGate`.
+The gate is opt-in and the original
+`!headless && Vars.renderer.enableEffects` behavior is unchanged whenever the
+port gate is disabled. `UpstreamClientEffects.follow` mirrors the viewport into
+Arc's camera so stock effect culling keeps visible effects.
+
+The host reference creates a stock lightning arc and explosion, advances two
+ticks, draws them, decodes an `EffectCallPacket`, and advances past both
+lifetimes. It also creates every beam bullet used by stock turrets
+(`LaserBulletType`, `ShrapnelBulletType`, `ContinuousLaserBulletType` and
+`PointLaserBulletType`) and requires each to draw. Output:
+
+```text
+UPSTREAM_CLIENT_EFFECTS lightning=arc explosion=impact draw=2 packet=ok cleanup=ok
+UPSTREAM_TURRET_BEAMS tested=laser,shrapnel,shrapnel,continuous,pointlaser
+```
+
+## Client status timers
+
+Client bullet hits apply the stock bullet status through `BulletType.hit`.
+Because the port does not run the stock unit simulation, `UpstreamClientStatus`
+advances those timers with the public `Statusc` API: it applies the current
+floor status while grounded, decrements non-permanent durations, rebuilds the
+applied bits, and keeps permanent/dynamic effects. Periodic
+`StatusEffect.update` damage and its Fx remain server-authoritative and are not
+simulated on the client.
+
+The host reference applies `burning`, forces the status Fx chance, confirms the
+stock effect spawns into the effect layer, advances the timer, expires it, and
+confirms the permanent `boss` effect is retained:
+
+```text
+UPSTREAM_CLIENT_STATUS tick=stock expire=burning permanent=boss fx=ok
+```
+
 ## Live projectile drawing
 
 The live viewport advances the original weapon mounts, delayed shots,
