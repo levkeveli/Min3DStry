@@ -48,6 +48,7 @@ import mindustry.gen.UpdateMarkerTextCallPacket;
 import mindustry.gen.UpdateMarkerTextureCallPacket;
 import mindustry.gen.WorldDataBeginCallPacket;
 import mindustry.logic.LMarkerControl;
+import mindustry.mod.DataBundleLoader;
 import mindustry.mod.Mods;
 import mindustry.net.Net;
 import mindustry.net.NetworkIO;
@@ -166,7 +167,9 @@ public final class UpstreamSnapshotDispatchReference {
         if (decoded.id != begin.id || decoded.total != next.length() || (decoded.type & 0xff) != Net.packetIdWorldStream) {
             throw new AssertionError("The rotation should use the stock stream declaration");
         }
-        UpstreamLiveNetworkProbe.loadSessionWorld(app, next.read());
+        try (var stream = next.read()) {
+            UpstreamLiveNetworkProbe.loadSessionWorld(app, stream, new DataBundleLoader());
+        }
         Vars.netClient.finishSnapshotWorld();
         if (Vars.state.map.name().equals(previousMap) || Vars.net != net || Vars.player != player
                 || Groups.player.getByID(player.id) != player || !"Rotation Fixture".equals(player.name)

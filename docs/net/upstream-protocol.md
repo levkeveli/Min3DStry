@@ -187,5 +187,11 @@ damaged cache entries. To test the exchange over localhost, run
 `maps/default/caldera.msav` in the server jar. The unmodified server
 requires one bundle on Glacier and adds another when it rotates. A fresh
 cache requests one asset on each world. A fresh process with the warm
-cache must request zero assets and receive both worlds. Applying and
-rendering each transferred asset type requires separate verification.
+cache must request zero assets and receive both worlds.
+
+The ARM11 frontend uses the original `DataBundleLoader` to install each
+world's locale overrides after loading. It restores the previous bundle before
+applying the replacement map's strings and when the client exits. Pass the
+two captures, the populated cache and the stock English bundle stem to
+`runStockServerBundlesJvm` to check the localized wave label on both maps and
+its restoration on exit.

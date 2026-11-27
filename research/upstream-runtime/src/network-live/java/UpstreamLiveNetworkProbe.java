@@ -83,6 +83,7 @@ import mindustry.gen.UpdateMarkerCallPacket;
 import mindustry.gen.UpdateMarkerTextCallPacket;
 import mindustry.gen.UpdateMarkerTextureCallPacket;
 import mindustry.gen.WorldDataBeginCallPacket;
+import mindustry.mod.DataBundleLoader;
 import mindustry.mod.Mods;
 import mindustry.net.Host;
 import mindustry.net.Net;
@@ -113,6 +114,7 @@ public final class UpstreamLiveNetworkProbe {
     private final UpstreamChatInput chatInput;
     private final Consumer<Team> roundResult;
     private final UpstreamServerAssets assets;
+    private final DataBundleLoader worldBundles = new DataBundleLoader();
     private Runnable deferredGraphics;
     private int nextLiveTransport = 1;
     private boolean awaitingWorld;
@@ -195,6 +197,7 @@ public final class UpstreamLiveNetworkProbe {
             try {
                 connect(host, port, app, 1);
             } finally {
+                worldBundles.unload();
                 Native.close();
             }
             System.out.println("UPSTREAM_LIVE_CONTROLS_LEFT");
@@ -213,6 +216,7 @@ public final class UpstreamLiveNetworkProbe {
             try {
                 connect(host, port, app, join);
             } finally {
+                worldBundles.unload();
                 Native.close();
             }
             System.out.println("UPSTREAM_LIVE_NET_DISCONNECTED join=" + join);
@@ -246,7 +250,7 @@ public final class UpstreamLiveNetworkProbe {
         try {
             var stream = prepareWorldStream(begin);
             int total = stream.remaining;
-            loadSessionWorld(app, stream);
+            loadSessionWorld(app, stream, worldBundles);
             if (stream.remaining != 0) throw new IOException("Incomplete initial stock world stream");
             if (deferredGraphics != null) {
                 System.out.println("UPSTREAM_WORLD_DECODED beforeGraphics=true");
@@ -265,8 +269,12 @@ public final class UpstreamLiveNetworkProbe {
         }
     }
 
-    static void loadSessionWorld(UpstreamWorldLoadProbe.ProbeApplication app, InputStream stream) throws IOException {
+    static void loadSessionWorld(UpstreamWorldLoadProbe.ProbeApplication app, InputStream stream,
+                                 DataBundleLoader worldBundles) throws IOException {
+        // The ARM11 renderer runs with Vars.headless, which skips the stock bundle loader in DataManager.
+        worldBundles.unload();
         NetworkIO.loadWorld(new InflaterInputStream(stream));
+        if (Core.bundle != null) worldBundles.load(Vars.state.data.getBundles());
         app.runPosted();
         if (Groups.player.size() != 1 || Vars.player.name == null || Vars.player.name.isEmpty()
                 || Vars.world.width() <= 0 || Vars.world.height() <= 0) {
@@ -595,7 +603,7 @@ public final class UpstreamLiveNetworkProbe {
                     try {
                         var stream = prepareWorldStream(begin);
                         worldBytes = stream.remaining;
-                        loadSessionWorld(app, stream);
+                        loadSessionWorld(app, stream, worldBundles);
                         if (stream.remaining != 0) throw new IOException("Incomplete stock map rotation stream");
                         confirmSessionWorld();
                     } finally {
