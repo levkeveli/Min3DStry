@@ -397,3 +397,22 @@ python3 tools/verify_upstream_factory_plans.py \
 - The palette is a bounded prototype, not the final upstream layout; not every
   catalog page or configurable block has an automated replay.
 - Physical touch hardware and the full catalog remain open with #27/#43.
+
+## Host verification
+
+`UpstreamBuildControlsReference` drives the touch adapter against a captured
+stock `WorldStream` and checks the plans the stock server would receive:
+
+```bash
+./gradlew -p research/upstream-runtime -Pprobe=network-live runBuildControlsJvm \
+  --args=/path/to/glacier-world-stream.bin
+UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26
+UPSTREAM_STOCK_BUILD_PLANS rotations=1,2,3,0 place=ok break=ok
+```
+
+The first marker is the conveyor at `85,26` with rotation `1`, the copper wall
+at `86,26` and its breaking plan. The second cycles the stock rotate input four
+times (rotation advances `1,2,3,0`) and then validates the stock build plan
+through `Build.validPlace`/`Tile.setBlock` (the block and rotation are applied)
+and the breaking plan through `Build.validBreak`, which clears the tile.
+

@@ -92,6 +92,7 @@ public final class UpstreamBuildControlsReference {
         if (!removal.breaking || removal.x != wall.x || removal.y != wall.y) {
             throw new AssertionError("Wrong upstream deconstruction plan");
         }
+        verifyStockPlans(controls, unit);
         controls.viewport(87, 20);
         if (controls.cursorX() != -1 || controls.cursorY() != -1) {
             throw new AssertionError("An offscreen cursor must clear");
@@ -113,6 +114,54 @@ public final class UpstreamBuildControlsReference {
         verifySchematicCapture(unit);
         verifySchematicClipboard();
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
+    }
+
+    /**
+     * Drives the stock four-way rotation input and executes the queued plans
+     * against the pinned world, so placement, rotation and deconstruction are
+     * checked on all four rotations instead of a single fixed one.
+     */
+    private static void verifyStockPlans(UpstreamLiveBuildControls controls, Unit unit) {
+        int[] rotations = new int[4];
+        for (int i = 0; i < rotations.length; i++) {
+            controls.update(unit, 0, touch(40, 24));
+            controls.update(unit, 0, touch(200, 24));
+            controls.update(unit, 0, touch(232, 136));
+            var plan = unit.plans().removeFirst();
+            if (plan.block != Blocks.conveyor || plan.breaking) {
+                throw new AssertionError("Rotation pass queued the wrong plan");
+            }
+            rotations[i] = plan.rotation;
+        }
+        for (int i = 1; i < rotations.length; i++) {
+            if (rotations[i] != (rotations[i - 1] + 1) % 4) {
+                throw new AssertionError("Stock rotation cycle changed: " + rotations[0] + ","
+                    + rotations[1] + "," + rotations[2] + "," + rotations[3]);
+            }
+        }
+
+        var plan = new mindustry.entities.units.BuildPlan(85, 26, rotations[0], Blocks.conveyor);
+        if (!plan.placeable(unit.team)) throw new AssertionError("Stock build plan is not placeable");
+        var tile = plan.tile();
+        tile.setBlock(plan.block, unit.team, plan.rotation);
+        if (tile.block() != Blocks.conveyor || tile.build == null || tile.build.rotation != plan.rotation) {
+            throw new AssertionError("Stock build plan did not apply its block and rotation");
+        }
+
+        if (!mindustry.world.Build.validBreak(unit.team, 85, 26)) {
+            throw new AssertionError("Stock break plan is not valid");
+        }
+        var removal = new mindustry.entities.units.BuildPlan(85, 26);
+        if (!removal.breaking || removal.block != Blocks.conveyor) {
+            throw new AssertionError("Stock break plan lost its target");
+        }
+        tile.setBlock(Blocks.air);
+        if (tile.block() != Blocks.air || removal.tile().block() != Blocks.air) {
+            throw new AssertionError("Stock break plan did not clear the tile");
+        }
+
+        System.out.println("UPSTREAM_STOCK_BUILD_PLANS rotations=" + rotations[0] + ","
+            + rotations[1] + "," + rotations[2] + "," + rotations[3] + " place=ok break=ok");
     }
 
     private static void verifyStockCommandMenu(Unit player) {
