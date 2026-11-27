@@ -100,6 +100,11 @@ screenshot matched 14 of 16 pinned skybox samples. The replay captured
 both atmospheres, selected Erekir, rendered The Onset at 512×512, and
 saved the sector. Unmodified Java v160.8 reopened its save and settings.
 
+The [integrated New 3DS replay at `435c1af`](https://github.com/levkeveli/Min3DStry/actions/runs/46043573487/artifacts/15223044459)
+repeated the 14-of-16 skybox sample match and the Erekir launch and stock
+save readback. Its captures show the solar-system overview, the Erekir
+atmosphere, and the selected 512×512 Onset sector.
+
 The stock JVM reference confirms that the projected mesh centers and
 `Planet.getSector` agree for Ground Zero and The Onset. It also exercises
 rotation to Serpulo 16, camera zoom, and a miss outside the globe.
