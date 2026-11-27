@@ -122,6 +122,7 @@ static bool minimap_ready;
 static int minimap_width, minimap_height;
 static uint8_t minimap_pixels[128 * 128 * 4] __attribute__((aligned(8)));
 
+// The widest supported world viewport is 32 by 24 tiles plus a one-texel border.
 enum { darkness_tex_width = 64, darkness_tex_height = 32 };
 static C3D_Tex darkness_texture;
 static uint8_t darkness_pixels[darkness_tex_width * darkness_tex_height * 4] __attribute__((aligned(8)));
@@ -756,11 +757,15 @@ int32_t m3ds_terrain_draw_darkness(const uint8_t *alpha, int32_t width, int32_t 
         C3D_TexSetWrap(&darkness_texture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
     }
 
-    // The shader output is black with inverted brightness as alpha. RGB stays zero.
+    // GPU_RGBA8 uses ABGR byte order in PICA texture memory, as in the minimap upload.
     for (int32_t y = 0; y < height + 2; y++) {
         for (int32_t x = 0; x < width + 2; x++) {
             unsigned index = raster_texel((unsigned)x, (unsigned)y, darkness_tex_width);
-            darkness_pixels[index * 4] = alpha[y * (width + 2) + x];
+            uint8_t *abgr = darkness_pixels + index * 4;
+            abgr[0] = alpha[y * (width + 2) + x];
+            abgr[1] = 0;
+            abgr[2] = 0;
+            abgr[3] = 0;
         }
     }
     C3D_TexUpload(&darkness_texture, darkness_pixels);

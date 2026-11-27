@@ -23,7 +23,8 @@ ATLAS_SHA256 = "fcfb2171eed35b60e7a0d696b63943883a191e7f547ecfef372bd42d72675334
 PLAYER = "Min3DStry ARM11"
 NUMBER = r"-?\d+(?:\.\d+)?"
 # The unsplit v160.8 core at spawn on both Azahar profiles. These samples
-# cover both sides of the source tile seams and avoid the player and wide HUD labels.
+# preserve the opaque gold and seam checks. The stock German objective HUD widens
+# after localization finishes and covers the old gold samples at (190,65/67).
 CORE_PIXELS = {
     (236, 125): (255, 210, 126), (235, 130): (255, 210, 126),
     (231, 75): (152, 154, 164), (232, 75): (152, 154, 164), (233, 75): (176, 185, 192),
@@ -633,7 +634,8 @@ def verify_world_darkness(log, emulator, server_log, server, rpc, output, model,
             'const rules=Vars.state.rules.copy(); '
             f'if ({mode}) {{ rules.limitMapArea=true; rules.limitX=Math.round(p.x / Vars.tilesize); '
             'rules.limitY=0; rules.limitWidth=Vars.world.width()-rules.limitX; '
-            'rules.limitHeight=Vars.world.height(); } '
+            'rules.limitHeight=Vars.world.height(); } else { rules.limitMapArea=false; '
+            'rules.limitX=0; rules.limitY=0; rules.limitWidth=0; rules.limitHeight=0; } '
             f'Call.setRules(p.con, rules); return "STOCK_DARKNESS phase={mode}"; }})()\n'
         )
         server.stdin.flush()
