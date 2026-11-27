@@ -85,3 +85,9 @@ planet's research tree. X cycles eligible stock trees inside the research
 screen. With no active world, contributions debit saved sector inventories
 and flush the original Arc settings. In a running campaign, contributions
 also save the active sector through the existing campaign save path.
+
+The [New 3DS replay at `072bc13`](https://github.com/levkeveli/Min3DStry/actions/runs/45742351182/artifacts/15083329350)
+captured the Serpulo and Erekir root trees and the planet-map entry. The
+stock Java reader reopened both campaign saves and verified the research
+and inventory. The globe contribution check also compared the stored
+sector file before and after research.
