@@ -1016,16 +1016,17 @@ configuration path applies edits offline and sends the original
 configured bytes to a Java v160.8 server in multiplayer.
 
 The stock Java reference checks source, preserved links, Canvas execution,
-and input size limits. The [New 3DS instruction editor replay](https://github.com/levkeveli/Min3DStry/actions/runs/45709866541/artifacts/15067988612)
-at `28391b1` captured the instruction lists in both modes. The grouped
-[ARM11 replay at `84ca11f`](https://github.com/levkeveli/Min3DStry/actions/runs/45756474861/artifacts/15089021420)
-also passed the offline and live readbacks. The earlier configuration
-screenshot sampled the side controls. The current verifier checks both
-sides of each menu row. The replay exercised file import, a fresh export, stock link toggling,
-duplication of an End instruction, and Apply. The unmodified v160.8 Java
-server verified the resulting source byte for byte, both links, and Canvas
-pixel 5 in the live session and after reopening the offline save. Physical
-hardware verification and the full desktop visual editor remain open.
+and input size limits. The grouped New 3DS replay at `d698870` captured
+the processor configuration and instruction menus in both session modes.
+It exercised file import, a fresh export, stock link toggling, duplication
+of an End instruction, and Apply. The unmodified v160.8 Java server
+verified the resulting source byte for byte, both links, and Canvas pixel
+5 in the live session and after reopening the offline save.
+[Grouped run](https://github.com/levkeveli/Min3DStry/actions/runs/46058780743)
+· [Processor screenshots and stock server logs](https://github.com/levkeveli/Min3DStry/actions/runs/46058780743/artifacts/15228822960)
+
+Physical hardware verification and the full desktop visual editor remain
+open.
 The ARM11 workflow reuses the unified ROM for both processor editor replays
 in a dedicated job with its own screenshots and stock-server logs.
 
