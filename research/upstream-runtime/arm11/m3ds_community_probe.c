@@ -116,7 +116,8 @@ int32_t m3ds_community_probe_poll(int32_t slot, uint8_t *packet, int32_t capacit
                                  int32_t metadata[2], uint8_t *target, int32_t target_capacity) {
     if (slot < 0 || slot >= M3DS_COMMUNITY_PROBE_SLOTS || !probes[slot].worker) return -1;
     ServerProbe *probe = &probes[slot];
-    if (R_FAILED(threadJoin(probe->worker, 0))) return 0;
+    // A zero-duration wait can return a positive timeout while the worker is still running.
+    if (threadJoin(probe->worker, 0) != 0) return 0;
     threadFree(probe->worker);
     probe->worker = NULL;
     if (probe->size <= 0 || probe->size > capacity || !packet || !metadata || !target || target_capacity <= 0) return -1;

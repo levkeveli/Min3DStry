@@ -103,7 +103,8 @@ void m3ds_community_http_cancel(void) {
 
 int32_t m3ds_community_http_poll(uint8_t *output, int32_t capacity) {
     if (!worker) return -1;
-    if (R_FAILED(threadJoin(worker, 0))) return 0;
+    // A zero-duration wait can return a positive timeout while the worker is still running.
+    if (threadJoin(worker, 0) != 0) return 0;
     threadFree(worker);
     worker = NULL;
     int32_t result = -1;
