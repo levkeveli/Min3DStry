@@ -399,6 +399,12 @@ if (usesSimulation) {
         mainClass = 'UpstreamLogisticsProbe'
         if (!glacierPath.isEmpty()) args glacierPath
     }
+    tasks.register('runCrafterRecipesJvm', JavaExec) {
+        dependsOn 'classes'
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'UpstreamCrafterRecipesProbe'
+        if (!glacierPath.isEmpty()) args glacierPath
+    }
 }
 if (probe == 'world-stream') {
     sourceSets.main.java.srcDir('src/world-stream/java')
