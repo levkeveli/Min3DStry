@@ -32,6 +32,14 @@ public final class UpstreamWorldLoadProbe {
     }
 
     static ProbeApplication load(String[] args, Runnable beforeMap) throws IOException {
+        return load(args, beforeMap, true);
+    }
+
+    static ProbeApplication loadAny(String[] args) throws IOException {
+        return load(args, () -> {}, false);
+    }
+
+    static ProbeApplication load(String[] args, Runnable beforeMap, boolean verifyGlacier) throws IOException {
         Fi file = new Fi(args.length == 0 ? "/3ds/min3dstry/glacier.msav" : args[0]);
         var app = initialize(file.parent());
         beforeMap.run();
@@ -44,7 +52,7 @@ public final class UpstreamWorldLoadProbe {
         if (Vars.state.map != map) {
             throw new IllegalStateException("Glacier did not load");
         }
-        verifyWorld();
+        if (verifyGlacier) verifyWorld();
         if (args.length > 1) {
             loadCurrentSave(app, new Fi(args[1]));
         }
