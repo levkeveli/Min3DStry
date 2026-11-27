@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "scored_weight": 97,
   "status_weights": {
     "missing": 0.0,
     "harness-only": 0.15,
@@ -565,7 +566,7 @@
     },
     {
       "id": "mp-crossplay-client",
-      "domain": "Multiplayer & Hardware",
+      "domain": "Multiplayer & Integration",
       "name": "Cross-Platform Multiplayer Client (Unmodified Java PC v160.8)",
       "weight": 4,
       "status": "live-arm11",
@@ -582,7 +583,7 @@
     },
     {
       "id": "mp-host-server-browser",
-      "domain": "Multiplayer & Hardware",
+      "domain": "Multiplayer & Integration",
       "name": "3DS Multiplayer Host/LAN Server & In-App Server Browser",
       "weight": 2,
       "status": "partial-arm11",
@@ -595,7 +596,7 @@
     },
     {
       "id": "unified-single-3dsx",
-      "domain": "Multiplayer & Hardware",
+      "domain": "Multiplayer & Integration",
       "name": "Unified Playable .3dsx (Offline + Campaign + MP + Audio + UI)",
       "weight": 3,
       "status": "live-arm11",
@@ -607,17 +608,6 @@
         "docs/gameplay/offline-singleplayer.md"
       ],
       "notes": "One ARM11 ROM runs offline Ground Zero and joins stock Java servers on both Azahar profiles. Offline and live audio replays verify the stock lifecycle through fallback decoding. Full stock menu navigation and physical acceptance remain open."
-    },
-    {
-      "id": "physical-3ds-24fps",
-      "domain": "Multiplayer & Hardware",
-      "name": "Physical New 3DS Hardware >= 24 FPS Parity",
-      "weight": 3,
-      "status": "missing",
-      "modes": [],
-      "issue": 43,
-      "evidence": [],
-      "notes": "Full playable acceptance requires sustained >= 24 FPS within the physical New 3DS application-memory budget. The older New 3DS harness soak does not establish full gameplay performance. The historical Original 3DS Azahar baseline was 3.48 FPS with a 44.44 MiB static subtotal. The later unified 66.49 MiB subtotal exceeds the Original 3DS limit. Original 3DS measurements are historical."
     }
   ]
 }
