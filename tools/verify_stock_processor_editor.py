@@ -64,17 +64,19 @@ def setup_sd(root):
 
 
 def capture_editor(rpc, destination, *, instructions=False):
-    # The renderer offsets the bottom screen by (40, 240). These samples sit
-    # inside two populated rows, away from the icons and text.
+    # Sample both sides of each row inside the menu. The left build sidebar
+    # shares the menu's panel color and cannot distinguish the two screens.
     panel = (45, 52, 64)
-    first_row = (52, 290)
-    points = (first_row, (52, 312), (52, 361))
+    background = (24, 27, 32)
+    first_row = ((94, 290), (304, 290))
+    common_rows = tuple((x, y) for x in (94, 304) for y in (312, 361))
+    expected = dict.fromkeys(common_rows, panel)
+    expected.update(dict.fromkeys(first_row, background if instructions else panel))
     deadline = time.monotonic() + 5
     while True:
         screenshot = rpc.screenshot(res_scale=1)
-        pixels = sp.az.inspect_png(screenshot, points)["samples"]
-        if (all(pixels.get(point) == panel for point in points[1:])
-                and (pixels.get(first_row) == panel) != instructions):
+        pixels = sp.az.inspect_png(screenshot, tuple(expected))["samples"]
+        if pixels == expected:
             destination.write_bytes(screenshot)
             return
         if time.monotonic() >= deadline:
