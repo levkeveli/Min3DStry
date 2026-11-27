@@ -29,6 +29,14 @@ def partition(source, output, count):
         else:
             runtime.append(line + "\n")
 
+    # TeaVM emits this reflection helper as an external function in a header.
+    # Its callers include core.h, so give each translation unit its own copy.
+    header = source.parent / "core.h"
+    text = header.read_text(encoding="utf-8")
+    definition = "    int32_t teavm_initNewInstance(void* cls, void* obj) {"
+    if definition in text:
+        header.write_text(text.replace(definition, "    static inline " + definition.lstrip()), encoding="utf-8")
+
     # Keep the platform/runtime includes together, in their original order.
     units = [output / "runtime.c"]
     units[0].write_text("".join(runtime), encoding="utf-8")
