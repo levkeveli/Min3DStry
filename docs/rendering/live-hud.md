@@ -52,13 +52,23 @@ Rows are rebuilt only when the rendered status text changes, then submitted
 through `drawObjectivePlain`/`drawObjective` before the objective rows.
 
 The minimap is a native citro2d texture. TeaVM samples the live world into an
-RGBA8 grid using the stock minimap color path. The ARM11 renderer reverses the
+RGBA8 grid using the two tile-color methods extracted at build time from the
+pinned v160.8 MinimapRenderer. The host reference compares all 4,096 Glacier
+terrain samples and dedicated fog, ore, shadow, and liquid-edge tiles with
+the original Java renderer. The ARM11 renderer reverses the
 world Y axis as the stock minimap does and converts the pixels to the PICA200's
 ABGR byte order and 8-by-8 Morton layout before uploading them through an
 aligned buffer. Uploads happen once at startup and every 60 rendered frames. The
 texture draw rebinds the top screen because the build palette leaves the bottom
 screen selected. The minimap translation unit also compiles without
 `M3DS_WORLD_ATLAS`; its static upload buffer is 64 KiB.
+
+The New 3DS smoke at `9607b4b` shows the minimap in the original Ground
+Zero campaign alongside live fog. The stock JVM comparison covers the full
+Glacier sample and both building-visibility states. Multiplayer HUD
+integration is tracked in #493.
+[Grouped run](https://github.com/levkeveli/Min3DStry/actions/runs/46052852198)
+· [Offline screenshots and logs](https://github.com/levkeveli/Min3DStry/actions/runs/46052852198/artifacts/15228200432)
 
 ## Camera zoom
 
