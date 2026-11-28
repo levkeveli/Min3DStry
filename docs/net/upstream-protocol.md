@@ -149,3 +149,19 @@ replay passed on the New 3DS profile.
 ## License Audit
 
 All C wire/framing code in `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` was written cleanly for Min3DStry from the wire specification documented in pinned upstream Mindustry (`GPLv3`) and Arc (`Apache-2.0` / `BSD-style` ArcNet heritage), with zero proprietary Nintendo code and zero undistributable third-party binaries.
+
+### Entity visibility and disconnects
+
+The live client dispatches the original HiddenSnapshot and PlayerDisconnect
+packets. Hidden units leave the synchronized group and can return when the
+server sends a visible update. The original disconnect handler removes the
+player and rejects delayed snapshots for their ID. The stock Java packet
+reference checks both lifecycles and verifies that the local player remains
+in the player group. The grouped New 3DS replay also sends an original
+entity snapshot followed by the hidden and disconnect packets. It checks
+that the unit and player are present before their packets and absent afterward.
+The New 3DS replay at `f006b90` kept the hidden entity eligible for later
+snapshots, retired the departed player's network ID, and completed movement
+and disconnect with the same local player.
+[Grouped run](https://github.com/levkeveli/Min3DStry/actions/runs/46052317222)
+· [Replay evidence](https://github.com/levkeveli/Min3DStry/actions/runs/46052317222/artifacts/15227000629)

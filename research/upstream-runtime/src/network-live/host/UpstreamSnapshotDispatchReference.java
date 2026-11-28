@@ -1,12 +1,14 @@
 import arc.files.Fi;
 import arc.math.geom.Point2;
 import arc.math.geom.Vec2;
+import arc.struct.IntSeq;
 import arc.util.io.Reads;
 import arc.util.io.Writes;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.HexFormat;
 import java.util.zip.InflaterInputStream;
 import mindustry.Vars;
@@ -32,12 +34,15 @@ import mindustry.gen.CompleteObjectiveCallPacket;
 import mindustry.gen.CreateMarkerCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.Groups;
+import mindustry.gen.HiddenSnapshotCallPacket;
 import mindustry.gen.Player;
+import mindustry.gen.PlayerDisconnectCallPacket;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.SetUnitCommandCallPacket;
 import mindustry.gen.SetUnitStanceCallPacket;
 import mindustry.gen.StateSnapshotCallPacket;
+import mindustry.gen.Syncc;
 import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitControlCallPacket;
@@ -126,12 +131,58 @@ public final class UpstreamSnapshotDispatchReference {
         verifyUnitCommandPackets(decodedMono);
         System.out.println("UPSTREAM_SNAPSHOT_REFERENCE wave=" + state.wave
             + " seconds=42 copper=947 dagger=" + dagger.id);
+        verifyEntityLifecycle(dagger);
         verifyPayloadHandoff();
         verifyObjectivePackets();
         verifyMarkerPackets();
         verifyPossessionPackets(decodedMono);
         verifyStockLinkPackets();
         verifyWeaponInput();
+    }
+
+    private static void verifyEntityLifecycle(Unit enemy) throws IOException {
+        Vars.state.rules.fog = true;
+        var hidden = new HiddenSnapshotCallPacket();
+        hidden.ids = IntSeq.with(enemy.id, 987654321);
+        applyPacket(hidden, UpstreamLiveNetworkProbe.entityLifecyclePacket(Net.getPacketId(hidden) & 0xff));
+        if (Groups.sync.getByID(enemy.id) != null || Vars.netClient.isEntityUsed(enemy.id)) {
+            throw new AssertionError("The hidden enemy must leave the world and remain eligible to reappear");
+        }
+        applyEntitySnapshot(enemy);
+        if (!(Groups.sync.getByID(enemy.id) instanceof Unit visible) || visible.type != enemy.type
+                || visible.x != enemy.x || visible.y != enemy.y) {
+            throw new AssertionError("A visible snapshot must restore the previously hidden enemy");
+        }
+        Vars.state.rules.fog = false;
+
+        var remote = Player.create();
+        remote.id(32101);
+        remote.name = "Stock visitor";
+        remote.team(Vars.player.team());
+        applyEntitySnapshot(remote);
+        if (Groups.player.getByID(remote.id) == null) throw new AssertionError("Stock remote player did not join");
+        var logout = new PlayerDisconnectCallPacket();
+        logout.playerid = remote.id;
+        applyPacket(logout, UpstreamLiveNetworkProbe.entityLifecyclePacket(Net.getPacketId(logout) & 0xff));
+        applyEntitySnapshot(remote);
+        if (Groups.player.getByID(remote.id) != null || Groups.sync.getByID(remote.id) != null
+                || !Vars.netClient.isEntityUsed(remote.id) || Groups.player.getByID(Vars.player.id) != Vars.player) {
+            throw new AssertionError("The disconnected player must stay removed after a late snapshot");
+        }
+        System.out.println("UPSTREAM_ENTITY_LIFECYCLE fog=hidden visible=restored disconnect=removed lateSnapshot=ignored");
+    }
+
+    private static void applyEntitySnapshot(Syncc entity) throws IOException {
+        var buffer = new ByteArrayOutputStream();
+        try (var out = new DataOutputStream(buffer)) {
+            out.writeInt(entity.id());
+            out.writeByte(entity.classId());
+            entity.writeSync(new Writes(out));
+        }
+        var snapshot = new EntitySnapshotCallPacket();
+        snapshot.amount = 1;
+        snapshot.data = buffer.toByteArray();
+        snapshot.handleClient();
     }
 
     private static void verifyWeaponInput() {

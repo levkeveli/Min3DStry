@@ -627,7 +627,7 @@
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
         "tools/verify_upstream_live_net.py"
       ],
-      "notes": "Wire-exact TCP/UDP client connects to stock Java PC v160.8 server in Azahar with live movement, mining, touch build, HUD, and combat snapshots."
+      "notes": "Wire-exact TCP/UDP client connects to stock Java PC v160.8 server in Azahar with live movement, mining, touch build, HUD, and combat snapshots. The grouped New 3DS replay verified stock hidden-entity and player-disconnect packets while keeping the local player active."
     },
     {
       "id": "mp-host-server-browser",

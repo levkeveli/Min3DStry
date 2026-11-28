@@ -50,10 +50,12 @@ import mindustry.gen.DeconstructFinishCallPacket;
 import mindustry.gen.EffectCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.Groups;
+import mindustry.gen.HiddenSnapshotCallPacket;
 import mindustry.gen.KickCallPacket;
 import mindustry.gen.KickCallPacket2;
 import mindustry.gen.Mechc;
 import mindustry.gen.Player;
+import mindustry.gen.PlayerDisconnectCallPacket;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.RemoveQueueBlockCallPacket;
 import mindustry.gen.SendChatMessageCallPacket;
@@ -105,6 +107,7 @@ public final class UpstreamLiveNetworkProbe {
     private final Mode mode;
     private final UpstreamPlayerIdentity identity;
     private final Consumer<Unit> frame;
+    private boolean loggedHiddenEntity;
     private final Supplier<UpstreamLiveBuildControls> building;
     private final Runnable reconnecting;
     private final Consumer<String> chat;
@@ -480,6 +483,7 @@ public final class UpstreamLiveNetworkProbe {
 
     private void driveLiveClient(UpstreamWorldLoadProbe.ProbeApplication app) throws IOException {
         var controls = new LiveControls(building == null ? null : building.get());
+        loggedHiddenEntity = false;
         int lastWave = -1;
         // A slow first presentation must not postpone the stock TCP heartbeat.
         if (frame != null && Native.beginKeepAlive(1) == 0) {
@@ -617,9 +621,27 @@ public final class UpstreamLiveNetworkProbe {
                 // and state. Creating a second entity here can claim an ID used by a stock unit.
                 System.out.println("UPSTREAM_LIVE_WEATHER name=" + weather.weather.name);
             } else {
-                var marker = markerPacket(id);
-                if (marker != null) {
-                    decode(marker, received).handleClient();
+                Packet update = markerPacket(id);
+                if (update == null) update = entityLifecyclePacket(id);
+                if (update != null) {
+                    decode(update, received);
+                    if (update instanceof HiddenSnapshotCallPacket hidden && !loggedHiddenEntity && hidden.ids.size > 0) {
+                        int idHidden = hidden.ids.first();
+                        boolean present = Groups.sync.getByID(idHidden) != null;
+                        update.handleClient();
+                        loggedHiddenEntity = true;
+                        System.out.println("UPSTREAM_LIVE_HIDDEN_ENTITY id=" + idHidden
+                            + " present=" + present + " absent=" + (Groups.sync.getByID(idHidden) == null)
+                            + " eligible=" + !Vars.netClient.isEntityUsed(idHidden));
+                    } else if (update instanceof PlayerDisconnectCallPacket logout) {
+                        boolean present = Groups.player.getByID(logout.playerid) != null;
+                        update.handleClient();
+                        System.out.println("UPSTREAM_LIVE_PLAYER_LEFT id=" + logout.playerid
+                            + " present=" + present + " absent=" + (Groups.player.getByID(logout.playerid) == null)
+                            + " retired=" + Vars.netClient.isEntityUsed(logout.playerid));
+                    } else {
+                        update.handleClient();
+                    }
                 } else if (frame != null) {
                     applyBuildingUpdate(id, received);
                 }
@@ -664,6 +686,12 @@ public final class UpstreamLiveNetworkProbe {
         packet.message = message;
         send(packet, true);
         System.out.println("UPSTREAM_LIVE_CHAT_SENT chars=" + message.length());
+    }
+
+    static Packet entityLifecyclePacket(int id) {
+        if (id == unsignedId(HiddenSnapshotCallPacket.class)) return new HiddenSnapshotCallPacket();
+        if (id == unsignedId(PlayerDisconnectCallPacket.class)) return new PlayerDisconnectCallPacket();
+        return null;
     }
 
     static Packet markerPacket(int id) {
