@@ -245,7 +245,7 @@
       "category": "Core Simulation",
       "name": "Turrets, Waves, Units & Flow Pathfinding",
       "weight": 8,
-      "stage": "emulator-tested",
+      "stage": "complete",
       "issue": 30,
       "evidence": [
         "research/upstream-runtime/host/UpstreamCombatBaseline.java",

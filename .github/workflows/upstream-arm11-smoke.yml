@@ -1103,6 +1103,7 @@ jobs:
           grep -F 'UPSTREAM_SP_LOADED source=map map=Ground_Zero size=256x256 wave=1 copper=0' "$RUNNER_TEMP/singleplayer-jvm.log"
           grep -F 'UPSTREAM_SP_SIM_PASS world=256x256 ' "$RUNNER_TEMP/singleplayer-jvm.log"
           grep -Fx 'UPSTREAM_SP_CONTROLS pause=ok pauseDisabled=ok wave=2 save=ok reload=ok' "$RUNNER_TEMP/singleplayer-jvm.log"
+          grep -Fx 'UPSTREAM_SP_COMBAT wave=2 turret=duo ammo=80 fired=17 advanced=6 enemy=dead' "$RUNNER_TEMP/singleplayer-jvm.log"
 
       - name: Verify generated singleplayer-sim TeaVM C at -O0 and -Os against JVM trace
         shell: bash

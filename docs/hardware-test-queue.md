@@ -56,6 +56,9 @@ merge:
 - `world-sprite-renderer`: physical New 3DS frame-time sample and visual check
   of the textured world/unit pass (software evidence: host atlas/region tests,
   Azahar `ATLAS loaded`, textured screenshots, parity).
+- `combat-waves-ai`: physical New 3DS sustained >= 24 FPS under high combat load
+  and the New 3DS ELF/heap footprint (software evidence: host JVM, TeaVM C
+  `-O0`/`-O2`, Azahar New/Old, offline session turret/wave/AI marker).
 
 They remain `complete` in `docs/mechanics-parity.json`; a failing physical run
 reopens the corresponding entry.
