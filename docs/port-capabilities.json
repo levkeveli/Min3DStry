@@ -213,7 +213,7 @@
       "category": "Core Simulation",
       "name": "Drills, Conveyors, Routers & Core Storage",
       "weight": 6,
-      "stage": "emulator-tested",
+      "stage": "complete",
       "issue": 26,
       "evidence": [
         "src/render/factory_demo.c",
