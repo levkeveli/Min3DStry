@@ -1355,6 +1355,7 @@ jobs:
           grep -E 'UPSTREAM_CONFIG_COVERAGE catalog=[0-9]+ icons=ok .* unclassified=0' "$RUNNER_TEMP/building-layers.log"
           grep -Fx 'UPSTREAM_DYNAMIC_LIGHT emitter=illuminator additive=ok buffer=ok idle=off warm=on' "$RUNNER_TEMP/building-layers.log"
           grep -Fx 'UPSTREAM_BUILDING_SHADOWS wall=ok' "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_PALETTE_CATALOG categories=10 entries=139 pages=3 paging=ok' "$RUNNER_TEMP/building-layers.log"
       - name: Verify the stock light buffer and non-radial light paths on the JVM
         run: |
           set -o pipefail

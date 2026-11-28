@@ -1081,9 +1081,13 @@ public final class UpstreamBuildControlsReference {
     private static void verifyCatalog(UpstreamLiveBuildControls controls, Unit unit) {
         var upstream = new UpstreamPlacementCatalog();
         var menu = controls.catalog();
-        int verified = 0;
+        int verified = 0, categories = 0, pages = 1;
         for (var category : Category.all) {
             var blocks = upstream.getUnlockedByCategory(category);
+            if (!blocks.isEmpty()) {
+                categories++;
+                pages = Math.max(pages, (blocks.size + UpstreamBuildMenu.ROWS - 1) / UpstreamBuildMenu.ROWS);
+            }
             for (int index = 0; index < blocks.size; index++) {
                 var block = blocks.get(index);
                 menu.open(block);
@@ -1094,6 +1098,20 @@ public final class UpstreamBuildControlsReference {
                     throw new AssertionError("Catalog selection lost upstream block " + block.name);
                 }
                 verified++;
+            }
+            if (!blocks.isEmpty()) {
+                int expectedPages = (blocks.size + UpstreamBuildMenu.ROWS - 1) / UpstreamBuildMenu.ROWS;
+                menu.open(blocks.first());
+                int visited = 1;
+                while (menu.nextPage()) {
+                    if (visited > 64) throw new AssertionError("Catalog paging did not terminate");
+                    menu.tap(276, UpstreamBuildMenu.FOOTER_TOP + 8);
+                    visited++;
+                }
+                if (visited != expectedPages) {
+                    throw new AssertionError("Category " + category.name() + " paged "
+                        + visited + " of " + expectedPages + " pages");
+                }
             }
         }
         var distribution = upstream.getUnlockedByCategory(Category.distribution);
@@ -1133,7 +1151,8 @@ public final class UpstreamBuildControlsReference {
             throw new AssertionError("Catalog choice did not reach the original construction queue");
         }
         System.out.println("UPSTREAM_CATALOG_REFERENCE entries=" + verified
-            + " routerPage=" + (routerIndex / UpstreamBuildMenu.ROWS + 1) + " routerRow=" + row);
+            + " routerPage=" + (routerIndex / UpstreamBuildMenu.ROWS + 1) + " routerRow=" + row
+            + " categories=" + categories + " pages=" + pages + " paging=ok");
     }
 
     private static int touch(int x, int y) {
