@@ -1676,7 +1676,9 @@ public final class UpstreamSinglePlayerApp {
         } else if (config.isOpen()) {
             drawMenu(config.labels(), config.iconIds(), config.selectedRow(),
                 config.previousPage(), config.nextPage(),
-                config.unitPlans() ? UpstreamTerrainRenderProbe.UNIT_CATALOG : UpstreamTerrainRenderProbe.ITEM_CATALOG);
+                config.unitPlans() ? UpstreamTerrainRenderProbe.UNIT_CATALOG
+                    : config.blockPlans() ? UpstreamTerrainRenderProbe.BLOCK_CATALOG
+                    : UpstreamTerrainRenderProbe.ITEM_CATALOG);
         } else if (inventory.isOpen()) {
             drawMenu(inventory.labels(), inventory.iconIds(), -1, inventory.previousPage(), inventory.nextPage(),
                 UpstreamTerrainRenderProbe.ITEM_CATALOG);

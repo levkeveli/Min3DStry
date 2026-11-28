@@ -26,6 +26,36 @@ full upstream catalog/layout parity remains open.
 - The ARM11 client drew the constructed sprites after each stock-server
   acknowledgement.
 
+## Config tables
+
+The touch config menu now covers every stock table shape the catalog exposes:
+item selectors (Sorter, Unloader, Routers), link blocks (Power Node, Item
+Bridge, Mass Driver, Payload Mass Driver), unit factory plans, the Boolean
+switch toggle and the payload-router block content table.
+
+- **Switch** toggles on tap like the stock block, instead of opening an empty
+  table.
+- **Payload Router** opens the stock block content list and clears it on a
+  second tap of the selected row; the config menu uses the block icon catalog.
+
+Host markers from `runBuildControlsJvm` against a captured stock WorldStream:
+
+```
+UPSTREAM_CONFIG_TABLES switch=ok payload=blocks selected=graphite-press
+UPSTREAM_CONFIG_TOGGLE x=88 y=26 before=true after=false
+```
+
+The unified-build smoke job also greps the catalog audit that classifies every
+configurable catalog block by its stock config shape:
+
+```
+UPSTREAM_CONFIG_COVERAGE catalog=139 icons=ok item=4 content=1 toggle=1 factory=3 link=8 command=4 text=1 color=4 action=2 unclassified=0
+```
+
+`command` covers the reconstructor command table (#449) and `text`/`color`/
+`action` are the stock non-table dialogs (message, illuminator colour, launch
+pads); the logic processor editor remains #688.
+
 ## Stock schematics
 
 Copy Mindustry v160.8 `.msch` files into
