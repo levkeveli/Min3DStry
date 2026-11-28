@@ -434,25 +434,29 @@
       "domain": "Combat, Units & Visual FX",
       "name": "Dynamic Lighting, Weather, Particle Effects & Camera Zoom",
       "weight": 2,
-      "status": "partial-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer", "harness"],
       "issue": 38,
       "evidence": [
         "docs/gameplay/offline-singleplayer.md",
+        "docs/rendering/live-hud.md",
         "docs/audio/ndsp-mixer.md",
         "research/upstream-runtime/src/network-render/java/UpstreamWeatherLayers.java",
         "research/upstream-runtime/src/network-render/host/UpstreamWeatherLayersReference.java",
         "research/upstream-runtime/src/network-render/host/UpstreamPuddleReference.java",
         "research/upstream-runtime/src/singleplayer/host/UpstreamOfflineWeatherReference.java",
         "research/upstream-runtime/src/network-render/java/UpstreamClientEffects.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
         "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        "research/upstream-runtime/src/world/java/port/render/UpstreamLightBuffer.java",
         "research/upstream-runtime/src/world/java/port/render/UpstreamBuildingLights.java",
         "research/upstream-runtime/src/network-render/host/UpstreamLightLineReference.java",
         "docs/rendering/citro2d-prototype.md",
         "src/render/scene_2d.c",
-        "src/platform/3ds/citro2d_backend.c"
+        "src/platform/3ds/citro2d_backend.c",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. The stock EffectState group now advances and draws with the pinned v160.8 Effect renderers, so server EffectCallPackets and local Fx provide the lightning, impact and dust layers instead of being dropped (host: lightning=arc explosion=impact draw=2 packet=ok cleanup=ok). The building pass invokes stock drawLight for visible emitters when map lighting is enabled, using its radial requests with the handheld additive circle-shadow sprite. Non-radial `Drawf.light` segment and textured-region calls now route through UpstreamBuildingLights when the desktop renderer is absent (host: UPSTREAM_LIGHT_PATHS line=ok textured=ok quads=1 sprites=1). The host reference checks the illuminator and the silicon smelter's idle and warm states. The stock light buffer and shadows remain open. Live camera zoom is wired to the New 3DS C-Stick (0.5x-2x, 8x6-32x24 tile span) with host checks; physical draw is pending the New 3DS acceptance run."
+      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. The stock EffectState group advances and draws with the pinned v160.8 Effect renderers (host: lightning=arc explosion=impact draw=2 packet=ok cleanup=ok). The world pass now accumulates every Drawf.light request (buildings, units, bullets, markers) into a low-resolution coverage buffer rasterized with the pinned circle-shadow falloff, mixes rules.ambientLight and composites it at Layer.light (host: UPSTREAM_DYNAMIC_LIGHT emitter=illuminator additive=ok buffer=ok idle=off warm=on; UPSTREAM_LIGHT_PATHS line=ok textured=ok buffer=ok quads=1 sprites=1 buffers=1). Block shadows reproduce BlockRenderer.drawShadows' blendShadowColor multiply at Layer.block - 1 (host: UPSTREAM_BUILDING_SHADOWS wall=ok). The smoke job greps all three and the Azahar offline/live replays run with the composite where the sector enables lighting. Live camera zoom is wired to the New 3DS C-Stick (0.5x-2x, 8x6-32x24 tile span) with host checks; physical frame time and the physical draw remain hardware residue (docs/hardware-test-queue.md)."
     },
     {
       "id": "logic-vm-execution",
