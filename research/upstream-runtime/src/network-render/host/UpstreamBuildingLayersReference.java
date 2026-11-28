@@ -279,7 +279,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         int moving = target.firstAt(conveyor.drawx(), conveyor.drawy());
         int producing = target.firstAt(drill.drawx(), drill.drawy());
         long visibleWallSprites = target.sprites.stream()
-            .filter(sprite -> sprite.x() == edgeWall.drawx() && sprite.y() == edgeWall.drawy()).count();
+            .filter(sprite -> sprite.x() == edgeWall.drawx() && sprite.y() == edgeWall.drawy() && !shadow(sprite)).count();
         if (visibleWallSprites != 1 || moving < 0 || cached <= moving || producing <= cached
                 || target.firstAt(offscreenWall.drawx(), offscreenWall.drawy()) != -1) {
             throw new AssertionError("Unexpected stock building culling or layer order: " + target.sprites);
@@ -297,6 +297,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyFluidDrawing(layers, viewport, viewer);
         target.verifyBuildingEffects(layers, viewport, viewer);
         target.verifyDynamicLight(layers, viewport, viewer);
+        target.verifyShadows(layers, viewport, viewer);
         target.verifyPayloadMix(layers, viewport, viewer);
         target.verifyCarriedBuildings(layers, viewport, viewer);
         target.verifyUnits(viewer);
@@ -595,8 +596,9 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             unitBuilds.clear();
             layers.render(viewport, viewer, build -> build == factory);
             int idleSprites = sprites.size();
-            if (idleSprites != 3 || !unitBuilds.isEmpty()) {
-                throw new AssertionError("Expected the original factory base, output and top layers at rest");
+            if (idleSprites != 4 || !unitBuilds.isEmpty()) {
+                throw new AssertionError("Expected the original factory base, shadow, output and top layers at rest: sprites="
+                    + idleSprites + " units=" + unitBuilds.size() + " quads=" + solidQuads.size());
             }
             factory.currentPlan = 1;
             factory.progress = ((UnitFactory)factory.block).plans.get(1).time / 2f;
@@ -1848,10 +1850,15 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             if (!hasRadialLight(light, region) || hasRadialLight(smelter, region)) {
                 throw new AssertionError("Expected an illuminator light and an idle smelter");
             }
+            if (port.render.UpstreamBuildingLights.coverageAt(light.x, light.y) <= 0f
+                    || port.render.UpstreamBuildingLights.coverageAt(smelter.x, smelter.y) > 0f) {
+                throw new AssertionError("Stock light buffer coverage does not follow the emitters");
+            }
             smelter.warmup = 1f;
             sprites.clear();
             layers.render(viewport, viewer, build -> build == smelter);
-            if (!hasRadialLight(smelter, region)) {
+            if (!hasRadialLight(smelter, region)
+                    || port.render.UpstreamBuildingLights.coverageNear(smelter.x, smelter.y) <= 0f) {
                 throw new AssertionError("The original smelter drawer did not emit a light after warmup");
             }
         } finally {
@@ -1861,13 +1868,42 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             tile.setBlock(Blocks.air);
             smelterTile.setBlock(Blocks.air);
         }
-        System.out.println("UPSTREAM_DYNAMIC_LIGHT emitter=illuminator additive=ok idle=off warm=on");
+        System.out.println("UPSTREAM_DYNAMIC_LIGHT emitter=illuminator additive=ok buffer=ok idle=off warm=on");
     }
 
     private boolean hasRadialLight(Building build, TextureRegion region) {
         return sprites.stream().anyMatch(sprite -> sprite.blending() == Blending.additive
             && sprite.page() == UpstreamTerrainDrawProbe.pageIndex(region)
             && Math.abs(sprite.x() - build.x) < 0.1f && Math.abs(sprite.y() - build.y) < 0.1f);
+    }
+
+    private void verifyShadows(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                               Team viewer) {
+        var tile = Vars.world.tile(30, 34);
+        tile.setBlock(Blocks.air);
+        tile.setBlock(Blocks.copperWall, viewer, 0);
+        var wall = tile.build;
+        wall.wasVisible = true;
+        boolean hasShadow = Blocks.copperWall.hasShadow;
+        int withShadow;
+        int withoutShadow;
+        sprites.clear();
+        layers.render(viewport, viewer, build -> build == wall);
+        withShadow = sprites.size();
+        Blocks.copperWall.hasShadow = false;
+        try {
+            sprites.clear();
+            layers.render(viewport, viewer, build -> build == wall);
+            withoutShadow = sprites.size();
+        } finally {
+            Blocks.copperWall.hasShadow = hasShadow;
+        }
+        tile.setBlock(Blocks.air);
+        if (withShadow != withoutShadow + 1) {
+            throw new AssertionError("Stock wall shadow quad missing: with=" + withShadow
+                + " without=" + withoutShadow);
+        }
+        System.out.println("UPSTREAM_BUILDING_SHADOWS wall=ok");
     }
 
     private void verifyFluidDrawing(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
@@ -2015,10 +2051,15 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         System.out.println("UPSTREAM_TEXTURED_LINE minelaser=ok");
     }
 
+    /** Stock block shadows are 1x1 overlays with the 0.71 black blend. */
+    private static boolean shadow(Sprite sprite) {
+        return sprite.width() == 1 && sprite.height() == 1 && sprite.color() == 0xB4000000;
+    }
+
     private int firstAt(float x, float y) {
         for (int i = 0; i < sprites.size(); i++) {
             var sprite = sprites.get(i);
-            if (sprite.x() == x && sprite.y() == y) return i;
+            if (sprite.x() == x && sprite.y() == y && !shadow(sprite)) return i;
         }
         return -1;
     }

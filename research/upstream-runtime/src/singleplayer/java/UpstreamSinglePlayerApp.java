@@ -1606,6 +1606,12 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void drawEntities() {
+        // Close a frame abandoned by a throw so the next frame starts clean.
+        port.render.UpstreamBuildingLights.end();
+        // Stock light accumulation spans the whole world pass, so unit and
+        // bullet lights reach the same low-resolution buffer as buildings.
+        port.render.UpstreamBuildingLights.begin(viewport.left, viewport.bottom,
+            viewport.width(), viewport.height());
         buildingLayers.render(viewport, Vars.player.team(), UpstreamSinglePlayerApp::supportsBuildingDraw);
         drawConstructBuilds();
         Draw.sort(true);
@@ -1640,6 +1646,7 @@ public final class UpstreamSinglePlayerApp {
         orders.draw(viewport);
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
+        port.render.UpstreamBuildingLights.end();
         drawCoreItems();
         drawPositionReadout();
         float hudY = drawStatusHud();

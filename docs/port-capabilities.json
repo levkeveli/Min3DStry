@@ -182,7 +182,7 @@
       "category": "Rendering & Assets",
       "name": "Zoom Camera, Lighting & Effects",
       "weight": 5,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 38,
       "evidence": [
         "include/render/scene_2d.h",
@@ -192,7 +192,14 @@
         "tests/render/test_scene_2d.c",
         "docs/rendering/citro2d-prototype.md",
         "docs/hardware/evidence/new3ds-xl-a328c70.md",
-        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md",
+        "research/upstream-runtime/src/world/java/port/render/UpstreamLightBuffer.java",
+        "research/upstream-runtime/src/world/java/port/render/UpstreamBuildingLights.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamLightLineReference.java",
+        "docs/gameplay/offline-singleplayer.md",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ]
     },
     {

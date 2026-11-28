@@ -1353,6 +1353,19 @@ jobs:
           grep -Fx 'UPSTREAM_LIQUID_JUNCTION_REFERENCE route=far deadEnd=self' "$RUNNER_TEMP/building-layers.log"
           grep -Fx 'UPSTREAM_OBJECTIVE_HUD_REFERENCE item=beryllium build=turbine-condenser hidden=filtered' "$RUNNER_TEMP/building-layers.log"
           grep -E 'UPSTREAM_CONFIG_COVERAGE catalog=[0-9]+ icons=ok .* unclassified=0' "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_DYNAMIC_LIGHT emitter=illuminator additive=ok buffer=ok idle=off warm=on' "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_BUILDING_SHADOWS wall=ok' "$RUNNER_TEMP/building-layers.log"
+      - name: Verify the stock light buffer and non-radial light paths on the JVM
+        run: |
+          set -o pipefail
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runLightLineJvm \
+            --args="$RUNNER_TEMP/Mindustry/core/assets/maps/default/glacier.msav $PWD/build/smoke-assets/sprites.aatls $PWD/build/smoke-assets/block_colors.png" \
+            | tee "$RUNNER_TEMP/light-lines.log"
+          grep -Fx 'UPSTREAM_LIGHT_PATHS line=ok textured=ok buffer=ok quads=1 sprites=1 buffers=1' "$RUNNER_TEMP/light-lines.log"
       - name: Verify stock Erekir duct transport in the port tick loop
         run: |
           set -o pipefail

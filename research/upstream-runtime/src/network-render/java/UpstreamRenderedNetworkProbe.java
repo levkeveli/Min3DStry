@@ -347,6 +347,9 @@ public final class UpstreamRenderedNetworkProbe {
     }
 
     private void drawEntities() {
+        port.render.UpstreamBuildingLights.end();
+        port.render.UpstreamBuildingLights.begin(viewport.left, viewport.bottom,
+            viewport.width(), viewport.height());
         buildingLayers.render(viewport, Vars.player.team(), UpstreamRenderedNetworkProbe::supportsBuildingDraw);
         for (var building : Groups.build) {
             if (building.block == Blocks.conveyor && viewport.contains(building)
@@ -404,6 +407,7 @@ public final class UpstreamRenderedNetworkProbe {
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
         weatherLayers.drawOver();
+        port.render.UpstreamBuildingLights.end();
         float hudY = drawStatusHud();
         // Base Block.setBars order: health, power, items, then liquids.
         hudY = buildingBasicBars.drawHealth(target, buildingControls, Vars.player.team(), hudY);
