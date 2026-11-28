@@ -10,13 +10,14 @@ import mindustry.type.UnitType;
 import mindustry.world.blocks.distribution.ItemBridge;
 import mindustry.world.blocks.distribution.MassDriver;
 import mindustry.world.blocks.payloads.PayloadMassDriver;
+import mindustry.world.blocks.payloads.PayloadRouter;
 import mindustry.world.blocks.power.PowerNode;
 import mindustry.world.blocks.units.UnitFactory;
 import static mindustry.Vars.player;
 
 /** Touch access to upstream configuration tables and building links. */
 final class UpstreamBuildingConfig {
-    private record Choice(UnlockableContent content, Object value) {}
+    private record Choice(UnlockableContent content, String label, Object value) {}
 
     private final Seq<Choice> choices = new Seq<>();
     private Building target;
@@ -38,16 +39,31 @@ final class UpstreamBuildingConfig {
             return;
         }
         boolean itemSelector = build.block.configurations.containsKey(Item.class);
-        if ((!itemSelector && !(build instanceof UnitFactory.UnitFactoryBuild)) || !build.configTapped()) return;
+        if (build.block.configurations.containsKey(Boolean.class)) {
+            // Stock switches toggle on tap; configTapped applies the boolean.
+            boolean before = (Boolean)build.config();
+            build.configTapped();
+            System.out.println("UPSTREAM_CONFIG_TOGGLE x=" + build.tileX() + " y=" + build.tileY()
+                + " before=" + before + " after=" + build.config());
+            return;
+        }
+        if ((!itemSelector && !(build instanceof UnitFactory.UnitFactoryBuild)
+                && !(build.block instanceof PayloadRouter)) || !build.configTapped()) return;
         choices.clear();
         if (itemSelector) {
             for (var item : Vars.content.items()) {
-                if (UpstreamItemChoices.accepts(item)) choices.add(new Choice(item, item));
+                if (UpstreamItemChoices.accepts(item)) choices.add(new Choice(item, item.localizedName, item));
+            }
+        } else if (build.block instanceof PayloadRouter router) {
+            for (var block : Vars.content.blocks()) {
+                if (router.canSort(block) && block.unlockedNow() && !block.isBanned()) {
+                    choices.add(new Choice(block, block.localizedName, block));
+                }
             }
         } else if (build.block instanceof UnitFactory factory) {
             for (int index = 0; index < factory.plans.size; index++) {
                 var unit = factory.plans.get(index).unit;
-                if (unit.unlockedNow() && !unit.isBanned()) choices.add(new Choice(unit, index));
+                if (unit.unlockedNow() && !unit.isBanned()) choices.add(new Choice(unit, unit.localizedName, index));
             }
         }
         if (choices.isEmpty()) return;
@@ -87,7 +103,7 @@ final class UpstreamBuildingConfig {
             if (row >= UpstreamBuildMenu.ROWS || index >= choices.size) return;
             var choice = choices.get(index);
             boolean clear = Objects.equals(choice.value(), target.config());
-            if (choice.content() instanceof UnitType unit) {
+            if (target instanceof UnitFactory.UnitFactoryBuild && choice.content() instanceof UnitType unit) {
                 if (!unit.unlockedNow() || unit.isBanned()) {
                     close();
                     return;
@@ -99,7 +115,7 @@ final class UpstreamBuildingConfig {
             } else {
                 target.configure(clear ? null : choice.value());
                 System.out.println("UPSTREAM_CONFIG_LOCAL x=" + target.tileX() + " y=" + target.tileY()
-                    + " item=" + (clear ? "none" : choice.content().name));
+                    + " content=" + (clear ? "none" : choice.label()));
             }
             close();
         }
@@ -123,9 +139,10 @@ final class UpstreamBuildingConfig {
         for (int row = 0; row < UpstreamBuildMenu.ROWS; row++) {
             int index = page * UpstreamBuildMenu.ROWS + row;
             if (index < choices.size) {
-                var content = choices.get(index).content();
-                result.append(content.localizedName);
-                iconIds[row] = content.id;
+                var choice = choices.get(index);
+                result.append(choice.label());
+                var content = choice.content();
+                iconIds[row] = content == null ? -1 : content.id;
             } else {
                 iconIds[row] = -1;
             }
@@ -142,6 +159,7 @@ final class UpstreamBuildingConfig {
     boolean previousPage() { return page > 0; }
     boolean nextPage() { return (page + 1) * UpstreamBuildMenu.ROWS < choices.size; }
     boolean unitPlans() { return target instanceof UnitFactory.UnitFactoryBuild; }
+    boolean blockPlans() { return target != null && target.block instanceof PayloadRouter; }
     int selectedRow() { return selectedIndex() - page * UpstreamBuildMenu.ROWS; }
 
     private int selectedIndex() {

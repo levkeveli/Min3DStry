@@ -24,6 +24,87 @@ matched JVM and generated C at both `-O0` and `-Os`. It exercised mining,
 building, deconstruction, pause, an enemy wave and save/reload, with the same
 final world fingerprint in all three builds. This run used the host runtime.
 
+### Session controls
+
+The same probe asserts the handheld session controls on stock Ground Zero:
+pause freezes `Vars.state.updateId` for 30 ticks and resume continues, the
+pause-disabled rule keeps the simulation running, the wave trigger spawns wave 1
+and reaches wave 2 with an advancing enemy, and the quick-save writes a non-empty
+`.msav` that reloads to the same wave, core copper and enemy count.
+
+```bash
+./gradlew -p research/upstream-runtime -Pprobe=singleplayer-sim runProbeJvm \
+  --args=/path/to/groundZero.msav /tmp/sp-save.msav
+UPSTREAM_SP_CONTROLS pause=ok pauseDisabled=ok wave=2 save=ok reload=ok
+```
+
+The singleplayer baseline job greps that marker next to `UPSTREAM_SP_SIM_PASS`.
+
+### Stock fonts and locale bundles
+
+`test_stock_font.c` exercises the original rasterizer on the host against the
+v160.8 font assets. It opens the 18 px game face, the Japanese face, the 30 px
+icon face and the 2 px outline, then checks the Latin glyph mask, the Japanese
+face choice for `0x63a1`, the Iconc.tree icon glyph, the outline border and the
+RGBA texel packing.
+
+```bash
+gcc -O2 -I research/upstream-runtime/arm11 -I /usr/include/freetype2 \
+  research/upstream-runtime/arm11/test_stock_font.c \
+  research/upstream-runtime/arm11/m3ds_stock_font.c -lfreetype -o test_stock_font
+./test_stock_font /path/to/v160.8/core/assets/fonts
+UPSTREAM_STOCK_FONT latin=ok japanese=ok tree=ok outline=ok fallback=ok texel=ok distinct=ok
+```
+
+The marker reports structural facts (non-empty, distinct Latin/Japanese/icon
+masks, outline border, RGBA texel packing) rather than FreeType-build-specific
+hashes, so a runner package upgrade cannot flip it.
+
+`UpstreamStockLocaleReference` loads every shipped bundle through the port's
+`UpstreamInterfaceLocale` and checks the catalog, liquid, unit and formatting
+keys with English and Japanese labels kept distinct.
+
+```bash
+./gradlew -p research/upstream-runtime \
+  -PupstreamCheckout=/path/to/v160.8 -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/arc -Pprobe=unified runStockLocalesJvm \
+  --args=/path/to/assets/bundles/bundle
+UPSTREAM_STOCK_LOCALES files=35 localized=34 parsed=ok keys=ok fallback=ok en=Conveyor ja=ok
+```
+
+The unified-build smoke job runs both checks, plus the objective-label marker
+from the building-layer reference (`UPSTREAM_OBJECTIVE_HUD_REFERENCE
+item=beryllium build=turbine-condenser hidden=filtered`).
+
+## World lighting and block shadows
+
+The handheld client now keeps the stock light accumulation as a low-resolution
+coverage buffer instead of drawing only additive sprites. Every `Drawf.light`
+request in the world pass (buildings, units, bullets, markers) is rasterized
+with the pinned `circle-shadow` falloff, the map `rules.ambientLight` is mixed
+in, and the result is composited at `Layer.light` as an RGBA texture, so areas
+without light are darkened exactly where the stock shader would darken them.
+The light colour itself still comes from the additive stock sprite pass, and
+non-radial segment/region requests feed the same coverage buffer.
+
+Block shadows follow `BlockRenderer.drawShadows`: every building whose
+`Block.displayShadow` reports true gets the stock `blendShadowColor` darkening
+(white lerped 0.71 toward black) at `Layer.block - 1`.
+
+Host markers:
+
+```
+UPSTREAM_DYNAMIC_LIGHT emitter=illuminator additive=ok buffer=ok idle=off warm=on
+UPSTREAM_LIGHT_PATHS line=ok textured=ok buffer=ok quads=1 sprites=1 buffers=1
+UPSTREAM_BUILDING_SHADOWS wall=ok
+```
+
+The unified-build smoke job greps all three next to the building-layer and
+liquid registries. The ARM11 build compiles the same path and the offline/live
+replays exercise it on both Azahar profiles when the replayed sector enables
+`rules.lighting`; the frame-time cost on real hardware remains in the hardware
+queue.
+
 ## Weather in the graphical campaign
 
 The graphical campaign uses the v160.8 weather entities, particle and debris
@@ -107,6 +188,19 @@ stock save decoder runs. The upstream reset also clears the retired building
 and floor indexes and the backing slots of the temporary block lists. The
 live world rebuilds its indexes during the normal WorldLoad event. If decode
 fails, the exit path leaves the selected save and backup available for recovery.
+
+In a non-campaign world the stock pause rows are Back, Settings, Save Game,
+Load Game and Quit. Load opens the stock save list: every valid non-sector
+`.msav` under `Vars.saveDirectory`, newest first, seven rows per page with
+`<`/`>` page rows. Choosing a row decodes that save and logs
+`UPSTREAM_PAUSE_MENU load=true picker=saves ...`; B returns to the pause menu.
+Campaign Load keeps the current-slot reload because campaign slots must decode
+with their sector context. The paging maths is shared with the title Load Game
+route (`UpstreamSavePicker`) and asserted on the host by the status-hud probe:
+
+```
+UPSTREAM_SAVE_PICKER pages=2 rows=ok select=ok empty=ok
+```
 
 For the dense Serpulo 242 replay, generate fixtures from the same stock Java
 server and use the matching emulator verifier flag.
