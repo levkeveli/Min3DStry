@@ -166,7 +166,8 @@ UPSTREAM_CORE_ITEM_FORMAT text=12k cases=9 ok
 UPSTREAM_CORE_ITEMS rows=2 ok
 UPSTREAM_MINIMAP_VIEW cases=5 ok
 UPSTREAM_SETTINGS_POSITION ok
-UPSTREAM_PAUSE_MENU cases=22 ok
+UPSTREAM_SAVE_PICKER pages=2 rows=ok select=ok empty=ok
+UPSTREAM_PAUSE_MENU cases=24 ok
 UPSTREAM_BOSS_BAR cases=4 ok
 UPSTREAM_CORE_ATTACK text="< Core is under attack! >" ok
 ```
@@ -198,7 +199,7 @@ phase-fabric=12,surge-alloy=9,spore-pod=25,pyratite=50
 The Original 3DS profile passed the same path with three seeded items
 (`items=3 drawn=3 columns=1`). The fixture is removed after the run.
 
-The pause overlay's selection, wrap, save, quit-confirmation and cancel
+The pause overlay's selection, wrap, save, load, quit-confirmation and cancel
 transitions are host-covered. Offline worlds with the stock `pauseDisabled`
 rule keep simulating while the menu is open. The overlay uses the localized
 Menu title in that case. The Ground Zero host probe checks both the normal
@@ -223,8 +224,11 @@ Verified on the emulator:
   Display Performance Metrics / Back; CTM runs toggled all four rows
   (`UPSTREAM_SETTINGS index=0..3`). The core-items and minimap rows changed the
   visible HUD, and the performance row added the `FPS` status row.
-- A on Load Game re-loads the campaign save: `load=true`, then a second
-  `UPSTREAM_SP_LOADED source=campaign`.
+- In a non-campaign world, Load opens the stock save list (newest first, seven
+  rows per page, `<`/`>` page rows); choosing a row emits `load=true` with
+  `picker=saves`, and B returns to the pause menu without leaving it.
+- A on Load Game in a campaign sector re-loads the campaign save: `load=true`,
+  then a second `UPSTREAM_SP_LOADED source=campaign`.
 - A on Save Game emits `UPSTREAM_PAUSE_MENU save=true`.
 - A on Quit, then A on the confirmation, emits `quit=true` and exits.
 - B or X cancels the menu; the HUD and minimap remain readable behind it.

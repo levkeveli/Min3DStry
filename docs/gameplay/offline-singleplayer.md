@@ -189,6 +189,19 @@ and floor indexes and the backing slots of the temporary block lists. The
 live world rebuilds its indexes during the normal WorldLoad event. If decode
 fails, the exit path leaves the selected save and backup available for recovery.
 
+In a non-campaign world the stock pause rows are Back, Settings, Save Game,
+Load Game and Quit. Load opens the stock save list: every valid non-sector
+`.msav` under `Vars.saveDirectory`, newest first, seven rows per page with
+`<`/`>` page rows. Choosing a row decodes that save and logs
+`UPSTREAM_PAUSE_MENU load=true picker=saves ...`; B returns to the pause menu.
+Campaign Load keeps the current-slot reload because campaign slots must decode
+with their sector context. The paging maths is shared with the title Load Game
+route (`UpstreamSavePicker`) and asserted on the host by the status-hud probe:
+
+```
+UPSTREAM_SAVE_PICKER pages=2 rows=ok select=ok empty=ok
+```
+
 For the dense Serpulo 242 replay, generate fixtures from the same stock Java
 server and use the matching emulator verifier flag.
 
