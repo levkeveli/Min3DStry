@@ -161,7 +161,7 @@
       "category": "Rendering & Assets",
       "name": "Textured World & Unit Citro2D Renderer",
       "weight": 6,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 25,
       "evidence": [
         "src/platform/3ds/citro2d_backend.c",
@@ -182,7 +182,7 @@
       "category": "Rendering & Assets",
       "name": "Zoom Camera, Lighting & Effects",
       "weight": 5,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 38,
       "evidence": [
         "include/render/scene_2d.h",
@@ -192,7 +192,14 @@
         "tests/render/test_scene_2d.c",
         "docs/rendering/citro2d-prototype.md",
         "docs/hardware/evidence/new3ds-xl-a328c70.md",
-        "docs/hardware/evidence/old3ds-xl-a4a9a96.md"
+        "docs/hardware/evidence/old3ds-xl-a4a9a96.md",
+        "research/upstream-runtime/src/world/java/port/render/UpstreamLightBuffer.java",
+        "research/upstream-runtime/src/world/java/port/render/UpstreamBuildingLights.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamLightLineReference.java",
+        "docs/gameplay/offline-singleplayer.md",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ]
     },
     {
@@ -213,7 +220,7 @@
       "category": "Core Simulation",
       "name": "Drills, Conveyors, Routers & Core Storage",
       "weight": 6,
-      "stage": "emulator-tested",
+      "stage": "complete",
       "issue": 26,
       "evidence": [
         "src/render/factory_demo.c",
@@ -231,7 +238,7 @@
       "category": "Core Simulation",
       "name": "Crafters, Power Grid & Liquid Graph",
       "weight": 6,
-      "stage": "emulator-tested",
+      "stage": "complete",
       "issue": 39,
       "evidence": [
         "research/upstream-runtime/host/UpstreamProductionBaseline.java",
@@ -245,7 +252,7 @@
       "category": "Core Simulation",
       "name": "Turrets, Waves, Units & Flow Pathfinding",
       "weight": 8,
-      "stage": "emulator-tested",
+      "stage": "complete",
       "issue": 30,
       "evidence": [
         "research/upstream-runtime/host/UpstreamCombatBaseline.java",
@@ -271,17 +278,20 @@
       "category": "Controls & Dual-Screen UI",
       "name": "Bottom-Screen Touch Build & Rotation UI",
       "weight": 6,
-      "stage": "emulator-tested",
+      "stage": "complete",
       "issue": 27,
       "evidence": [
         "research/upstream-runtime/README.md",
         "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        "research/upstream-runtime/src/network-live/java/UpstreamBuildMenu.java",
         "tools/verify_upstream_live_net.py",
         "docs/gameplay/touch-build-palette.md",
         "research/upstream-runtime/arm11/m3ds_input.h",
         "research/upstream-runtime/arm11/m3ds_input.c",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerInput.java",
-        "docs/gameplay/offline-singleplayer.md"
+        "docs/gameplay/offline-singleplayer.md",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ]
     },
     {

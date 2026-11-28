@@ -1,6 +1,6 @@
 # Production, Power Graph & Liquid Flow Baseline (Issue #39)
 
-**Verification status:** Emulator-tested across pinned upstream Mindustry `v160.8` JVM, TeaVM C `-O0` / `-O2`, and Azahar `2126.2` New/Old 3DS profiles (`-Pprobe=production-ticks`); `production-power-liquids` in [port-capabilities.json](../port-capabilities.json) is **Emulator-tested** under [#39](https://github.com/levkeveli/Min3DStry/issues/39). Physical 3DS memory/frame-time verification remains open. The `liquids-pumps-conduits` mechanic is **software complete**: the host liquid registry, bridge/phase one-way transfer, router dump and junction routing markers below run in the smoke workflow.
+**Verification status:** Complete on software evidence across pinned upstream Mindustry `v160.8` JVM, TeaVM C `-O0` / `-O2`, and Azahar `2126.2` New/Old 3DS profiles (`-Pprobe=production-ticks`); `production-power-liquids` in [port-capabilities.json](../port-capabilities.json) is **Complete** under [#39](https://github.com/levkeveli/Min3DStry/issues/39). Physical 3DS memory/frame-time verification is hardware residue listed in [hardware-test-queue.md](../hardware-test-queue.md) and does not gate the software gauge. The `liquids-pumps-conduits` mechanic is **software complete**: the host liquid registry, bridge/phase one-way transfer, router dump and junction routing markers below run in the smoke workflow.
 
 ## 1:1 Upstream Mandate
 
@@ -115,6 +115,11 @@ acceptance run. Keyed consumer and generator bars use the same stock
 `addLiquidBar` list and are drawn in stock order.
 
 ## Remaining Scope for Issue #39
+
+Software scope is closed. The two remaining items need physical New Nintendo
+3DS/2DS hardware and are tracked in
+[hardware-test-queue.md](../hardware-test-queue.md); they do not gate the
+software gauge:
 
 - Reduce the ARM11 footprint within the Old 3DS XL (`64 MiB` AppMem) budget.
 - Verify production, power and liquid execution on physical New Nintendo 3DS/2DS hardware.

@@ -1,6 +1,6 @@
 # Sprite asset pipeline
 
-Status: **emulator-tested** (`ATLAS loaded`, textured screenshots and parity verified in Azahar `2126.2`; physical New 3DS frame-time verification pending).
+Status: **Complete** on software evidence (`host-tested`, `3ds-build-tested`, `emulator-tested` via Azahar `2126.2`: `ATLAS loaded`, textured screenshots, parity verified). Physical New 3DS frame-time verification is hardware residue (see [hardware-test-queue.md](../hardware-test-queue.md)) and does not gate the software gauge. Deterministic byte-identical generation and the 5,200-region upstream importer are host-tested; renderer integration is verified by the textured world/unit draw replays.
 
 Capability stage scope: the emulator-tested part is packing the generated fixture sheet into RomFS, loading it and rendering textured frames. Deterministic byte-identical generation and the 5,200-region upstream importer remain host-tested; renderer integration is still tracked by the terrain/world issues.
 

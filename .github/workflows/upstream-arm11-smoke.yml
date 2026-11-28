@@ -1102,6 +1102,9 @@ jobs:
             | tee "$RUNNER_TEMP/singleplayer-jvm.log"
           grep -F 'UPSTREAM_SP_LOADED source=map map=Ground_Zero size=256x256 wave=1 copper=0' "$RUNNER_TEMP/singleplayer-jvm.log"
           grep -F 'UPSTREAM_SP_SIM_PASS world=256x256 ' "$RUNNER_TEMP/singleplayer-jvm.log"
+          grep -Fx 'UPSTREAM_SP_CONTROLS pause=ok pauseDisabled=ok wave=2 save=ok reload=ok' "$RUNNER_TEMP/singleplayer-jvm.log"
+          grep -Fx 'UPSTREAM_SP_COMBAT wave=2 turret=duo ammo=80 fired=17 advanced=6 enemy=dead' "$RUNNER_TEMP/singleplayer-jvm.log"
+          grep -Fx 'UPSTREAM_SP_LOGISTICS chain=container>unloader>conveyor delivered=1 tick=35' "$RUNNER_TEMP/singleplayer-jvm.log"
 
       - name: Verify generated singleplayer-sim TeaVM C at -O0 and -Os against JVM trace
         shell: bash
@@ -1348,6 +1351,22 @@ jobs:
           grep -Fx 'UPSTREAM_LIQUID_BRIDGE_REFERENCE bridgeMilli=100000 phaseMilli=100000 backLink=rejected' "$RUNNER_TEMP/building-layers.log"
           grep -Fx 'UPSTREAM_LIQUID_ROUTER_REFERENCE movedMilli=60000 initialMilli=120000 remainingMilli=60000' "$RUNNER_TEMP/building-layers.log"
           grep -Fx 'UPSTREAM_LIQUID_JUNCTION_REFERENCE route=far deadEnd=self' "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_OBJECTIVE_HUD_REFERENCE item=beryllium build=turbine-condenser hidden=filtered' "$RUNNER_TEMP/building-layers.log"
+          grep -E 'UPSTREAM_CONFIG_COVERAGE catalog=[0-9]+ icons=ok .* unclassified=0' "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_DYNAMIC_LIGHT emitter=illuminator additive=ok buffer=ok idle=off warm=on' "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_BUILDING_SHADOWS wall=ok' "$RUNNER_TEMP/building-layers.log"
+          grep -Fx 'UPSTREAM_PALETTE_CATALOG categories=10 entries=139 pages=3 paging=ok' "$RUNNER_TEMP/building-layers.log"
+      - name: Verify the stock light buffer and non-radial light paths on the JVM
+        run: |
+          set -o pipefail
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runLightLineJvm \
+            --args="$RUNNER_TEMP/Mindustry/core/assets/maps/default/glacier.msav $PWD/build/smoke-assets/sprites.aatls $PWD/build/smoke-assets/block_colors.png" \
+            | tee "$RUNNER_TEMP/light-lines.log"
+          grep -Fx 'UPSTREAM_LIGHT_PATHS line=ok textured=ok buffer=ok quads=1 sprites=1 buffers=1' "$RUNNER_TEMP/light-lines.log"
       - name: Verify stock Erekir duct transport in the port tick loop
         run: |
           set -o pipefail
@@ -1369,6 +1388,49 @@ jobs:
             "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=logic-instructions runProbeJvm \
             | tee "$RUNNER_TEMP/logic-instructions.log"
           grep -Fx 'UPSTREAM_LOGIC_INSTRUCTIONS classes=52 ops=45 conditions=8 jump=ok end=ok print=ok format=ok color=ok' "$RUNNER_TEMP/logic-instructions.log"
+      - name: Verify every stock locale bundle on the JVM
+        run: |
+          set -o pipefail
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runStockLocalesJvm \
+            --args="$PWD/build/smoke-assets/bundles/bundle" | tee "$RUNNER_TEMP/locales.log"
+          grep -F 'parsed=ok keys=ok fallback=ok en=Conveyor ja=ok' "$RUNNER_TEMP/locales.log"
+      - name: Verify the stock settings preferences on the JVM
+        run: |
+          set -o pipefail
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=stock-settings runProbeJvm \
+            --args="$PWD/build/smoke-assets/bundles/bundle $RUNNER_TEMP/Mindustry/core/src/mindustry/ui/dialogs/SettingsMenuDialog.java" | tee "$RUNNER_TEMP/stock-settings.log"
+          grep -Fx 'UPSTREAM_STOCK_SETTINGS entries=35 checks=26 sliders=9 labels=ok source=ok format=ok clamp=ok toggle=ok' "$RUNNER_TEMP/stock-settings.log"
+      - name: Verify the stock pause layout and save picker on the JVM
+        run: |
+          set -o pipefail
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=status-hud runProbeJvm \
+            --args="$PWD/build/smoke-assets/bundles/bundle" | tee "$RUNNER_TEMP/pause-load.log"
+          grep -Fx 'UPSTREAM_SAVE_PICKER pages=2 rows=ok select=ok empty=ok' "$RUNNER_TEMP/pause-load.log"
+          grep -Fx 'UPSTREAM_PAUSE_MENU cases=24 ok' "$RUNNER_TEMP/pause-load.log"
+      - name: Verify the stock font rasterizer on the host
+        run: |
+          set -o pipefail
+          sudo apt-get update
+          sudo apt-get install -y libfreetype-dev
+          gcc -O2 -I research/upstream-runtime/arm11 -I /usr/include/freetype2 \
+            research/upstream-runtime/arm11/test_stock_font.c \
+            research/upstream-runtime/arm11/m3ds_stock_font.c -lfreetype \
+            -o "$RUNNER_TEMP/test_stock_font"
+          "$RUNNER_TEMP/test_stock_font" "$RUNNER_TEMP/Mindustry/core/assets/fonts" \
+            | tee "$RUNNER_TEMP/stock-font.log"
+          grep -Fx 'UPSTREAM_STOCK_FONT latin=ok japanese=ok tree=ok outline=ok fallback=ok texel=ok distinct=ok' "$RUNNER_TEMP/stock-font.log"
       - uses: actions/upload-artifact@v4
         with:
           name: unified-arm11-smoke

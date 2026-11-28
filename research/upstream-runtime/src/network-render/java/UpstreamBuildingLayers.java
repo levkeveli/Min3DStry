@@ -1,5 +1,7 @@
 import arc.Core;
+import arc.graphics.Blending;
 import arc.graphics.g2d.Draw;
+import arc.graphics.g2d.Fill;
 import arc.struct.IntSet;
 import arc.struct.ObjectSet;
 import arc.struct.Seq;
@@ -90,6 +92,7 @@ final class UpstreamBuildingLayers {
         visited.clear();
         Draw.sort(true);
         try {
+            drawShadows(visible);
             drawPuddles(viewport);
             for (var layer : BuildingCacheLayer.all) {
                 Draw.draw(layer.layer, () -> drawCached(layer, viewer));
@@ -112,7 +115,7 @@ final class UpstreamBuildingLayers {
                 if (!build.block.drawDynamic) drawCracks(build);
             }
             drawTurrets(visible);
-            drawLights(visible);
+            drawLights(visible, viewport);
         } finally {
             try {
                 Draw.sort(false);
@@ -132,16 +135,40 @@ final class UpstreamBuildingLayers {
         }
     }
 
-    private static void drawLights(Seq<Building> visible) {
+    /**
+     * Stock block shadow pass: tiles whose block displays a shadow multiply the
+     * floor by blendShadowColor (white lerped 0.71 toward black). An immediate
+     * black overlay with alpha 0.71 is the same composite without the
+     * world-sized shadow texture.
+     */
+    private static void drawShadows(Seq<Building> visible) {
+        float layer = Layer.block - 1f;
+        for (var build : visible) {
+            var block = build.block;
+            if (!block.hasShadow || !block.displayShadow(build.tile)) continue;
+            Draw.z(layer);
+            Draw.blend(Blending.normal);
+            Draw.color(0f, 0f, 0f, 0.71f);
+            float size = block.size * Vars.tilesize;
+            Fill.rect(build.x, build.y, size, size);
+            Draw.color();
+        }
+        Draw.blend();
+    }
+
+    private static void drawLights(Seq<Building> visible, UpstreamTerrainDrawProbe.Viewport viewport) {
         var rules = Vars.state.rules;
         if (!Vars.enableLight || !rules.lighting || rules.ambientLight.a <= 0.0001f) return;
-        UpstreamBuildingLights.begin();
+        boolean owned = !UpstreamBuildingLights.active();
+        if (owned) {
+            UpstreamBuildingLights.begin(viewport.left, viewport.bottom, viewport.width(), viewport.height());
+        }
         try {
             for (var build : visible) {
                 if (build.block.emitLight || build.block.drawLiquidLight) build.drawLight();
             }
         } finally {
-            UpstreamBuildingLights.end();
+            if (owned) UpstreamBuildingLights.end();
         }
     }
 

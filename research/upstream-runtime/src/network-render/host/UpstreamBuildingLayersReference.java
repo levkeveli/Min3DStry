@@ -25,6 +25,7 @@ import arc.math.geom.Vec2;
 import arc.mock.MockAudio;
 import arc.mock.MockGraphics;
 import arc.struct.Seq;
+import arc.struct.ObjectSet;
 import arc.util.Time;
 import arc.util.io.Reads;
 import arc.util.io.Writes;
@@ -111,6 +112,11 @@ import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.units.UnitFactory;
+import mindustry.world.blocks.distribution.ItemBridge;
+import mindustry.world.blocks.distribution.MassDriver;
+import mindustry.world.blocks.payloads.PayloadMassDriver;
+import mindustry.world.blocks.power.PowerNode;
+import mindustry.type.Item;
 
 public final class UpstreamBuildingLayersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private record Sprite(float x, float y, int page, int left, int top, int width, int height, float rotation, int color, int mixColor, Blending blending) {}
@@ -153,6 +159,101 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         System.out.println("UPSTREAM_CHAT_TOUCH_REFERENCE submit=ok cancel=ok stockLimit=" + Vars.maxTextLength);
     }
 
+    /**
+     * Audits the stock catalog against the staged menu icons and classifies every
+     * configurable catalog block by the stock config shape it exposes.
+     */
+    private static void verifyCatalogCoverage(Fi manifest) {
+        var icons = new ObjectSet<String>();
+        for (String line : manifest.readString().split("\n")) {
+            String[] columns = line.split("\t");
+            if (columns.length >= 2 && !"file".equals(columns[0])) icons.add(columns[1]);
+        }
+
+        var catalog = new UpstreamPlacementCatalog();
+        int entries = 0, missingIcons = 0, item = 0, content = 0, toggle = 0, factory = 0,
+            link = 0, command = 0, text = 0, color = 0, action = 0, unclassified = 0;
+        for (var category : Category.all) {
+            for (var block : catalog.getUnlockedByCategory(category)) {
+                entries++;
+                if (!icons.contains(block.name)) missingIcons++;
+                if (!block.configurable) continue;
+                if (block instanceof PowerNode || block instanceof ItemBridge
+                    || block instanceof MassDriver || block instanceof PayloadMassDriver) {
+                    link++;
+                } else if (block instanceof UnitFactory) {
+                    factory++;
+                } else if (block.configurations.containsKey(Item.class)) {
+                    item++;
+                } else if (block.configurations.containsKey(Boolean.class)) {
+                    toggle++;
+                } else if (block.configurations.containsKey(Block.class)
+                    || block.configurations.containsKey(mindustry.type.UnitType.class)) {
+                    content++;
+                } else if (block.configurations.containsKey(Integer.class)) {
+                    color++;
+                } else if (block.configurations.containsKey(String.class)) {
+                    text++;
+                } else if (block.configurations.containsKey(mindustry.ai.UnitCommand.class)) {
+                    command++;
+                } else if (block.configurations.isEmpty()) {
+                    // Stock tap-action configs (launch pads, accelerators).
+                    action++;
+                } else {
+                    unclassified++;
+                }
+            }
+        }
+        if (missingIcons != 0) {
+            throw new AssertionError("Catalog blocks without a staged menu icon: " + missingIcons);
+        }
+        if (toggle == 0 || content == 0) {
+            throw new AssertionError("Catalog audit did not see the switch/payload-router config kinds");
+        }
+        if (unclassified != 0) {
+            throw new AssertionError("Unclassified stock config kinds: " + unclassified);
+        }
+        System.out.println("UPSTREAM_CONFIG_COVERAGE catalog=" + entries + " icons=ok item=" + item
+            + " content=" + content + " toggle=" + toggle + " factory=" + factory + " link=" + link
+            + " command=" + command + " text=" + text + " color=" + color + " action=" + action + " unclassified=0");
+    }
+
+    /**
+     * Walks every unlocked category page through the touch catalog adapter and
+     * fails if a page is unreachable or paging overshoots the stock entry count.
+     */
+    private static void verifyPalettePaging() {
+        var catalog = new UpstreamPlacementCatalog();
+        var menu = new UpstreamBuildMenu();
+        int categories = 0, entries = 0, pages = 1;
+        for (var category : Category.all) {
+            var blocks = catalog.getUnlockedByCategory(category);
+            if (blocks.isEmpty()) continue;
+            categories++;
+            entries += blocks.size;
+            int expected = (blocks.size + UpstreamBuildMenu.ROWS - 1) / UpstreamBuildMenu.ROWS;
+            pages = Math.max(pages, expected);
+            menu.open(blocks.first());
+            int visited = 1;
+            while (menu.nextPage()) {
+                if (visited > 64) throw new AssertionError("Catalog paging did not terminate");
+                menu.tap(276, UpstreamBuildMenu.FOOTER_TOP + 8);
+                if (visited >= expected) {
+                    throw new AssertionError("Catalog paged past " + expected + " pages in "
+                        + category.name());
+                }
+                visited++;
+            }
+            if (visited != expected) {
+                throw new AssertionError("Category " + category.name() + " pages " + visited
+                    + " of " + expected);
+            }
+            menu.tap(160, 218);
+        }
+        System.out.println("UPSTREAM_PALETTE_CATALOG categories=" + categories + " entries=" + entries
+            + " pages=" + pages + " paging=ok");
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length == 3 && args[0].equals("--packaged-graphics")) {
             verifySpriteAtlas(new Fi(args[2]));
@@ -176,6 +277,9 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), UpstreamFluidAtlas::load);
         Vars.content.loadColors(new Fi(args[2]));
         UpstreamCrackAtlas.load();
+        Fi menuIcons = new Fi(args[1]).parent().child("menu-icons.tsv");
+        if (menuIcons.exists()) verifyCatalogCoverage(menuIcons);
+        verifyPalettePaging();
 
         var target = new UpstreamBuildingLayersReference();
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);
@@ -212,7 +316,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         int moving = target.firstAt(conveyor.drawx(), conveyor.drawy());
         int producing = target.firstAt(drill.drawx(), drill.drawy());
         long visibleWallSprites = target.sprites.stream()
-            .filter(sprite -> sprite.x() == edgeWall.drawx() && sprite.y() == edgeWall.drawy()).count();
+            .filter(sprite -> sprite.x() == edgeWall.drawx() && sprite.y() == edgeWall.drawy() && !shadow(sprite)).count();
         if (visibleWallSprites != 1 || moving < 0 || cached <= moving || producing <= cached
                 || target.firstAt(offscreenWall.drawx(), offscreenWall.drawy()) != -1) {
             throw new AssertionError("Unexpected stock building culling or layer order: " + target.sprites);
@@ -230,6 +334,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         target.verifyFluidDrawing(layers, viewport, viewer);
         target.verifyBuildingEffects(layers, viewport, viewer);
         target.verifyDynamicLight(layers, viewport, viewer);
+        target.verifyShadows(layers, viewport, viewer);
         target.verifyPayloadMix(layers, viewport, viewer);
         target.verifyCarriedBuildings(layers, viewport, viewer);
         target.verifyUnits(viewer);
@@ -528,8 +633,9 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             unitBuilds.clear();
             layers.render(viewport, viewer, build -> build == factory);
             int idleSprites = sprites.size();
-            if (idleSprites != 3 || !unitBuilds.isEmpty()) {
-                throw new AssertionError("Expected the original factory base, output and top layers at rest");
+            if (idleSprites != 4 || !unitBuilds.isEmpty()) {
+                throw new AssertionError("Expected the original factory base, shadow, output and top layers at rest: sprites="
+                    + idleSprites + " units=" + unitBuilds.size() + " quads=" + solidQuads.size());
             }
             factory.currentPlan = 1;
             factory.progress = ((UnitFactory)factory.block).plans.get(1).time / 2f;
@@ -1781,10 +1887,15 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             if (!hasRadialLight(light, region) || hasRadialLight(smelter, region)) {
                 throw new AssertionError("Expected an illuminator light and an idle smelter");
             }
+            if (port.render.UpstreamBuildingLights.coverageAt(light.x, light.y) <= 0f
+                    || port.render.UpstreamBuildingLights.coverageAt(smelter.x, smelter.y) > 0f) {
+                throw new AssertionError("Stock light buffer coverage does not follow the emitters");
+            }
             smelter.warmup = 1f;
             sprites.clear();
             layers.render(viewport, viewer, build -> build == smelter);
-            if (!hasRadialLight(smelter, region)) {
+            if (!hasRadialLight(smelter, region)
+                    || port.render.UpstreamBuildingLights.coverageNear(smelter.x, smelter.y) <= 0f) {
                 throw new AssertionError("The original smelter drawer did not emit a light after warmup");
             }
         } finally {
@@ -1794,13 +1905,42 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             tile.setBlock(Blocks.air);
             smelterTile.setBlock(Blocks.air);
         }
-        System.out.println("UPSTREAM_DYNAMIC_LIGHT emitter=illuminator additive=ok idle=off warm=on");
+        System.out.println("UPSTREAM_DYNAMIC_LIGHT emitter=illuminator additive=ok buffer=ok idle=off warm=on");
     }
 
     private boolean hasRadialLight(Building build, TextureRegion region) {
         return sprites.stream().anyMatch(sprite -> sprite.blending() == Blending.additive
             && sprite.page() == UpstreamTerrainDrawProbe.pageIndex(region)
             && Math.abs(sprite.x() - build.x) < 0.1f && Math.abs(sprite.y() - build.y) < 0.1f);
+    }
+
+    private void verifyShadows(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
+                               Team viewer) {
+        var tile = Vars.world.tile(30, 34);
+        tile.setBlock(Blocks.air);
+        tile.setBlock(Blocks.copperWall, viewer, 0);
+        var wall = tile.build;
+        wall.wasVisible = true;
+        boolean hasShadow = Blocks.copperWall.hasShadow;
+        int withShadow;
+        int withoutShadow;
+        sprites.clear();
+        layers.render(viewport, viewer, build -> build == wall);
+        withShadow = sprites.size();
+        Blocks.copperWall.hasShadow = false;
+        try {
+            sprites.clear();
+            layers.render(viewport, viewer, build -> build == wall);
+            withoutShadow = sprites.size();
+        } finally {
+            Blocks.copperWall.hasShadow = hasShadow;
+        }
+        tile.setBlock(Blocks.air);
+        if (withShadow != withoutShadow + 1) {
+            throw new AssertionError("Stock wall shadow quad missing: with=" + withShadow
+                + " without=" + withoutShadow);
+        }
+        System.out.println("UPSTREAM_BUILDING_SHADOWS wall=ok");
     }
 
     private void verifyFluidDrawing(UpstreamBuildingLayers layers, UpstreamTerrainDrawProbe.Viewport viewport,
@@ -1948,10 +2088,15 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         System.out.println("UPSTREAM_TEXTURED_LINE minelaser=ok");
     }
 
+    /** Stock block shadows are 1x1 overlays with the 0.71 black blend. */
+    private static boolean shadow(Sprite sprite) {
+        return sprite.width() == 1 && sprite.height() == 1 && sprite.color() == 0xB4000000;
+    }
+
     private int firstAt(float x, float y) {
         for (int i = 0; i < sprites.size(); i++) {
             var sprite = sprites.get(i);
-            if (sprite.x() == x && sprite.y() == y) return i;
+            if (sprite.x() == x && sprite.y() == y && !shadow(sprite)) return i;
         }
         return -1;
     }
