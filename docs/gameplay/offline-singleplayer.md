@@ -40,6 +40,41 @@ UPSTREAM_SP_CONTROLS pause=ok pauseDisabled=ok wave=2 save=ok reload=ok
 
 The singleplayer baseline job greps that marker next to `UPSTREAM_SP_SIM_PASS`.
 
+### Stock fonts and locale bundles
+
+`test_stock_font.c` exercises the original rasterizer on the host against the
+v160.8 font assets. It opens the 18 px game face, the Japanese face, the 30 px
+icon face and the 2 px outline, then checks the Latin glyph mask, the Japanese
+face choice for `0x63a1`, the Iconc.tree icon glyph, the outline border and the
+RGBA texel packing.
+
+```bash
+gcc -O2 -I research/upstream-runtime/arm11 -I /usr/include/freetype2 \
+  research/upstream-runtime/arm11/test_stock_font.c \
+  research/upstream-runtime/arm11/m3ds_stock_font.c -lfreetype -o test_stock_font
+./test_stock_font /path/to/v160.8/core/assets/fonts
+UPSTREAM_STOCK_FONT latin=ok japanese=ok tree=ok outline=ok fallback=ok texel=ok distinct=ok
+```
+
+The marker reports structural facts (non-empty, distinct Latin/Japanese/icon
+masks, outline border, RGBA texel packing) rather than FreeType-build-specific
+hashes, so a runner package upgrade cannot flip it.
+
+`UpstreamStockLocaleReference` loads every shipped bundle through the port's
+`UpstreamInterfaceLocale` and checks the catalog, liquid, unit and formatting
+keys with English and Japanese labels kept distinct.
+
+```bash
+./gradlew -p research/upstream-runtime \
+  -PupstreamCheckout=/path/to/v160.8 -PreferenceJar=/path/to/server-release.jar \
+  -ParcCheckout=/path/to/arc -Pprobe=unified runStockLocalesJvm \
+  --args=/path/to/assets/bundles/bundle
+UPSTREAM_STOCK_LOCALES files=35 localized=34 parsed=ok keys=ok fallback=ok en=Conveyor ja=ok
+```
+
+The unified-build smoke job runs both checks, plus the objective-label marker
+from the building-layer reference (`UPSTREAM_OBJECTIVE_HUD_REFERENCE
+item=beryllium build=turbine-condenser hidden=filtered`).
 
 ## Weather in the graphical campaign
 
