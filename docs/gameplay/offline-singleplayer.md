@@ -76,6 +76,35 @@ The unified-build smoke job runs both checks, plus the objective-label marker
 from the building-layer reference (`UPSTREAM_OBJECTIVE_HUD_REFERENCE
 item=beryllium build=turbine-condenser hidden=filtered`).
 
+## World lighting and block shadows
+
+The handheld client now keeps the stock light accumulation as a low-resolution
+coverage buffer instead of drawing only additive sprites. Every `Drawf.light`
+request in the world pass (buildings, units, bullets, markers) is rasterized
+with the pinned `circle-shadow` falloff, the map `rules.ambientLight` is mixed
+in, and the result is composited at `Layer.light` as an RGBA texture, so areas
+without light are darkened exactly where the stock shader would darken them.
+The light colour itself still comes from the additive stock sprite pass, and
+non-radial segment/region requests feed the same coverage buffer.
+
+Block shadows follow `BlockRenderer.drawShadows`: every building whose
+`Block.displayShadow` reports true gets the stock `blendShadowColor` darkening
+(white lerped 0.71 toward black) at `Layer.block - 1`.
+
+Host markers:
+
+```
+UPSTREAM_DYNAMIC_LIGHT emitter=illuminator additive=ok buffer=ok idle=off warm=on
+UPSTREAM_LIGHT_PATHS line=ok textured=ok buffer=ok quads=1 sprites=1 buffers=1
+UPSTREAM_BUILDING_SHADOWS wall=ok
+```
+
+The unified-build smoke job greps all three next to the building-layer and
+liquid registries. The ARM11 build compiles the same path and the offline/live
+replays exercise it on both Azahar profiles when the replayed sector enables
+`rules.lighting`; the frame-time cost on real hardware remains in the hardware
+queue.
+
 ## Weather in the graphical campaign
 
 The graphical campaign uses the v160.8 weather entities, particle and debris

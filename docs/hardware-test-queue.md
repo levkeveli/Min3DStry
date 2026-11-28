@@ -62,6 +62,9 @@ merge:
 - `world-blocks-logistics`: physical New 3DS >= 24 FPS and app-memory footprint
   for the full drill/conveyor/router runtime (software evidence: host JVM,
   TeaVM C `-O0`/`-O2`, Azahar New/Old, offline session logistics marker).
+- `lighting-effects-camera`: physical New 3DS frame-time sample with the light
+  buffer and block shadows active (software evidence: host light-buffer
+  coverage/shadow markers in the smoke job and the Azahar world replays).
 
 They remain `complete` in `docs/mechanics-parity.json`; a failing physical run
 reopens the corresponding entry.
