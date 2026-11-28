@@ -75,13 +75,18 @@ clamp and span math are host-checked; the **physical draw is pending** the New
 
 ## Dynamic emitter lights
 
-Visible buildings with `emitLight` draw the stock `circle-shadow` region
-additively at their `lightRadius`/`lightColor`. `LightBlock` (for example the
-Illuminator) uses its configured color, brightness, efficiency and smoothing
-time. The host building reference asserts a real additive light sprite from the
-Illuminator. Core glow, per-block `drawLight` overrides (generators, reactors,
-crafters), the full stock light buffer and shadowing remain open; the
-**physical draw is pending** the New 3DS acceptance run.
+Visible buildings with `emitLight` request the stock light through the shared
+light buffer (see [offline-singleplayer](../gameplay/offline-singleplayer.md#world-lighting-and-block-shadows)):
+every `Drawf.light` request in the world pass is rasterized with the pinned
+`circle-shadow` falloff, mixed with `rules.ambientLight` and composited at
+`Layer.light`, so unlit areas darken like the stock shader. `LightBlock` (for
+example the Illuminator) uses its configured color, brightness, efficiency and
+smoothing time; block footprints get the stock `blendShadowColor` shadow at
+`Layer.block - 1`. Host markers: `UPSTREAM_DYNAMIC_LIGHT emitter=illuminator
+additive=ok buffer=ok idle=off warm=on`, `UPSTREAM_LIGHT_PATHS line=ok
+textured=ok buffer=ok quads=1 sprites=1 buffers=1`, `UPSTREAM_BUILDING_SHADOWS
+wall=ok`. The **physical draw and frame time** are pending the New 3DS
+acceptance run.
 
 ## Selected building bars
 

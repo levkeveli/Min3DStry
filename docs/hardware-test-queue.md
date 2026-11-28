@@ -65,6 +65,9 @@ merge:
 - `lighting-effects-camera`: physical New 3DS frame-time sample with the light
   buffer and block shadows active (software evidence: host light-buffer
   coverage/shadow markers in the smoke job and the Azahar world replays).
+- `lighting-weather-fx-zoom`: physical frame time and draw check for the light
+  buffer, shadows and C-Stick camera zoom (software evidence: host markers plus
+  the merged ARM11 build and Azahar world replays).
 
 They remain `complete` in `docs/mechanics-parity.json`; a failing physical run
 reopens the corresponding entry.
