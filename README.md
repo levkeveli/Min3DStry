@@ -14,6 +14,7 @@ Run `./dev.sh doctor` for environment diagnostics, `./dev.sh test` for host unit
 
 - [Project dashboard](https://levkeveli.github.io/Min3DStry/)
 - [Roadmap and tasks](https://github.com/levkeveli/Min3DStry/issues)
+- [Stock vs. port gameplay checkpoints](docs/testing/stock-port-comparison.md) (pinned JVM vs. TeaVM C)
 - [Offline campaign and Custom Game](docs/gameplay/offline-singleplayer.md) (Emulator-tested on Old & New 3DS in Azahar `2126.2`; physical hardware pending `#43`)
 - [Stock map editor and .msav export](docs/ui/stock-map-editor.md) (Emulator-tested in New 3DS mode)
 - [Embedded TeaVM save loader](docs/porting/embed-loader.md) (Default `min3dstry.3dsx` startup path linked with `libm3dsloader.a`)
