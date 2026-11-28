@@ -59,6 +59,7 @@ import mindustry.gen.RemoveQueueBlockCallPacket;
 import mindustry.gen.SendChatMessageCallPacket;
 import mindustry.gen.SendMessageCallPacket;
 import mindustry.gen.SendMessageCallPacket2;
+import mindustry.gen.SetMapAreaCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.SetPositionCallPacket;
 import mindustry.gen.SetRuleCallPacket;
@@ -595,10 +596,6 @@ public final class UpstreamLiveNetworkProbe {
                 decode(new SetPositionCallPacket(), received).handleClient();
             } else if (id == unsignedId(SetObjectivesCallPacket.class)) {
                 decode(new SetObjectivesCallPacket(), received).handleClient();
-            } else if (id == unsignedId(SetRulesCallPacket.class)) {
-                decode(new SetRulesCallPacket(), received).handleClient();
-            } else if (id == unsignedId(SetRuleCallPacket.class)) {
-                decode(new SetRuleCallPacket(), received).handleClient();
             } else if (chat != null && id == unsignedId(SendMessageCallPacket.class)) {
                 var message = decode(new SendMessageCallPacket(), received);
                 message.handleClient();
@@ -617,9 +614,18 @@ public final class UpstreamLiveNetworkProbe {
                 // and state. Creating a second entity here can claim an ID used by a stock unit.
                 System.out.println("UPSTREAM_LIVE_WEATHER name=" + weather.weather.name);
             } else {
-                var marker = markerPacket(id);
-                if (marker != null) {
-                    decode(marker, received).handleClient();
+                Packet update = rulesPacket(id);
+                if (update == null) update = markerPacket(id);
+                if (update != null) {
+                    decode(update, received).handleClient();
+                    if (update instanceof SetMapAreaCallPacket) {
+                        var rules = Vars.state.rules;
+                        boolean limited = rules.limitMapArea;
+                        System.out.println("UPSTREAM_LIVE_MAP_AREA x=" + (limited ? rules.limitX : 0)
+                            + " y=" + (limited ? rules.limitY : 0)
+                            + " width=" + (limited ? rules.limitWidth : Vars.world.width())
+                            + " height=" + (limited ? rules.limitHeight : Vars.world.height()) + " limited=" + limited);
+                    }
                 } else if (frame != null) {
                     applyBuildingUpdate(id, received);
                 }
@@ -664,6 +670,13 @@ public final class UpstreamLiveNetworkProbe {
         packet.message = message;
         send(packet, true);
         System.out.println("UPSTREAM_LIVE_CHAT_SENT chars=" + message.length());
+    }
+
+    static Packet rulesPacket(int id) {
+        if (id == unsignedId(SetRulesCallPacket.class)) return new SetRulesCallPacket();
+        if (id == unsignedId(SetRuleCallPacket.class)) return new SetRuleCallPacket();
+        if (id == unsignedId(SetMapAreaCallPacket.class)) return new SetMapAreaCallPacket();
+        return null;
     }
 
     static Packet markerPacket(int id) {

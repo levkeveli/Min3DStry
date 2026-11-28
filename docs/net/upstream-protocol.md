@@ -149,3 +149,24 @@ replay passed on the New 3DS profile.
 ## License Audit
 
 All C wire/framing code in `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` was written cleanly for Min3DStry from the wire specification documented in pinned upstream Mindustry (`GPLv3`) and Arc (`Apache-2.0` / `BSD-style` ArcNet heritage), with zero proprietary Nintendo code and zero undistributable third-party binaries.
+
+### Scripted map bounds
+
+The live client applies the original v160.8 `SetMapArea` packet through
+the stock map-area handler. The JVM replay contracts the playable area,
+checks that the inside drill stays enabled and the outside drill is
+suspended, then reopens the world and checks that the drill runs again
+and the border darkness clears.
+The live ARM11 replay also sends the pinned server's generated
+`Call.setMapArea` broadcasts and checks the client's actual rule state
+after both changes. In the
+[New 3DS replay at `e59111d`](https://github.com/levkeveli/Min3DStry/actions/runs/45758795565/job/139709347324),
+the stock server narrowed Glacier from 150×250 to 142×242, then restored
+the full bounds. The handheld applied both updates and completed the
+movement, wave and disconnect checks. The stock graphical border pass
+remains open.
+
+The grouped [CI replay at `da46fff`](https://github.com/levkeveli/Min3DStry/actions/runs/46044299973)
+repeated the stock broadcast and movement checks. The current verifier
+compares the server's expected dimensions directly with the handheld's
+effective rule bounds after each packet.

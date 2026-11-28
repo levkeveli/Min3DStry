@@ -604,6 +604,23 @@ def verify_touch_config(log, emulator, server_log, server, timeout, capture, pos
     print("Stock server verified Copper, returned Lead, and accepted clearing the Sorter.", flush=True)
 
 
+def verify_scripted_map_area(log, emulator, server_log, server, timeout):
+    wait_for(log, emulator, r"UPSTREAM_LIVE_CONTROLS_READY unit=\d+", timeout)
+    for inset, limited in ((4, "true"), (0, "false")):
+        # Use the stock generated broadcast. Leave the central playfield untouched.
+        server.stdin.write(
+            f'js (() => {{ const w=Vars.world.width()-{2 * inset}, h=Vars.world.height()-{2 * inset}; '
+            f'Call.setMapArea({inset}, {inset}, w, h); '
+            'return "STOCK_MAP_AREA width=" + w + " height=" + h + " limited=" + Vars.state.rules.limitMapArea; })()\n'
+        )
+        server.stdin.flush()
+        reference = re.compile(rf"STOCK_MAP_AREA width=(\d+) height=(\d+) limited={limited}\b")
+        width, height = reference.search(wait_for(server_log, server, reference, 10)).groups()
+        received = rf"UPSTREAM_LIVE_MAP_AREA x={inset} y={inset} width={width} height={height} limited={limited}\b"
+        wait_for(log, emulator, received, timeout)
+    print("UPSTREAM_LIVE_MAP_AREA_REPLAY contracted=ok restored=ok", flush=True)
+
+
 def verify_controls(log, emulator, server_log, server, timeout, capture=None,
                     building=False, desktop_name=None, touch_build=False, touch_config=False, menu_icons=False,
                     stock_menu_font=False):
@@ -2162,6 +2179,8 @@ def run_model(args, model, config, original_config, log, output):
                         if "UPSTREAM_LIVE_NET_ERROR" in emu_log:
                             raise RuntimeError("The client failed after rendering the atlas stress frame")
                     else:
+                        if args.scripted_map_area:
+                            verify_scripted_map_area(log, emulator, server_log, server, args.timeout)
                         verify_controls(log, emulator, server_log, server, args.timeout,
                                         capture if args.terrain_atlas else None, args.building, args.desktop_name,
                                         args.touch_build, args.touch_config, args.menu_icons,
@@ -2269,6 +2288,8 @@ def main():
                         help="Check and capture the English stock disconnect notice")
     parser.add_argument("--controls-replay", action="store_true",
                         help="Replay the controls test input in Azahar 2126.2")
+    parser.add_argument("--scripted-map-area", action="store_true",
+                        help="Contract and restore the world using the original server's SetMapArea broadcast")
     parser.add_argument("--join-from-title", action="store_true",
                         help="Start at the unified title and join through the Play menu")
     parser.add_argument("--unified-boot", action="store_true",
@@ -2363,6 +2384,8 @@ def main():
     parser.add_argument("--require-relocation-spill", action="store_true",
                         help="Require the ARM11 collector to grow its relocation table during the spawn check")
     args = parser.parse_args()
+    if args.scripted_map_area and not args.controls:
+        parser.error("--scripted-map-area requires --controls")
     args.server, args.rom, args.azahar = (path.resolve() for path in (args.server, args.rom, args.azahar))
     with args.server.open("rb") as archive:
         if hashlib.file_digest(archive, "sha256").hexdigest() != SERVER_SHA256:

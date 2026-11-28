@@ -34,6 +34,7 @@ import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.Groups;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveMarkerCallPacket;
+import mindustry.gen.SetMapAreaCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
 import mindustry.gen.SetUnitCommandCallPacket;
 import mindustry.gen.SetUnitStanceCallPacket;
@@ -128,6 +129,7 @@ public final class UpstreamSnapshotDispatchReference {
             + " seconds=42 copper=947 dagger=" + dagger.id);
         verifyPayloadHandoff();
         verifyObjectivePackets();
+        verifyMapArea();
         verifyMarkerPackets();
         verifyPossessionPackets(decodedMono);
         verifyStockLinkPackets();
@@ -248,6 +250,51 @@ public final class UpstreamSnapshotDispatchReference {
             throw new AssertionError("The original stance packet did not select copper");
         }
         System.out.println("UPSTREAM_STANCE_PACKET_REFERENCE mono=mine-copper");
+    }
+
+    private static void verifyMapArea() {
+        var rules = Vars.state.rules;
+        boolean previousDisable = rules.disableOutsideArea;
+        boolean previousDarkness = rules.borderDarkness;
+        rules.disableOutsideArea = true;
+        rules.borderDarkness = true;
+        var inside = Vars.world.tile(70, 70);
+        var outside = Vars.world.tile(85, 70);
+        try {
+            inside.setBlock(Blocks.mechanicalDrill, Vars.player.team());
+            outside.setBlock(Blocks.mechanicalDrill, Vars.player.team());
+            Vars.state.teams.updateTeamStats();
+            float originalDarkness = Vars.world.getDarkness(outside.x, outside.y);
+            var bounds = new SetMapAreaCallPacket();
+            bounds.x = 65;
+            bounds.y = 65;
+            bounds.w = 12;
+            bounds.h = 12;
+            applyMapArea(bounds);
+            if (!rules.limitMapArea || !Vars.world.isInMapArea(inside.x, inside.y) || !inside.build.enabled
+                    || Vars.world.isInMapArea(outside.x, outside.y) || outside.build.enabled
+                    || Vars.world.getDarkness(outside.x, outside.y) <= originalDarkness) {
+                throw new AssertionError("Stock map area must restrict terrain and suspend buildings outside the bounds");
+            }
+            bounds.x = bounds.y = 0;
+            bounds.w = Vars.world.width();
+            bounds.h = Vars.world.height();
+            applyMapArea(bounds);
+            if (rules.limitMapArea || !Vars.world.isInMapArea(outside.x, outside.y) || !outside.build.enabled
+                    || Vars.world.getDarkness(outside.x, outside.y) != originalDarkness) {
+                throw new AssertionError("Restoring the stock map area must reactivate the building and clear the border");
+            }
+        } finally {
+            rules.disableOutsideArea = previousDisable;
+            rules.borderDarkness = previousDarkness;
+        }
+        System.out.println("UPSTREAM_STOCK_MAP_AREA contracted=disabled reopened=enabled border=stock");
+    }
+
+    private static void applyMapArea(SetMapAreaCallPacket bounds) {
+        var received = UpstreamLiveNetworkProbe.rulesPacket(Net.getPacketClassId(bounds.getClass()) & 0xff);
+        if (!(received instanceof SetMapAreaCallPacket)) throw new AssertionError("Missing stock map area packet");
+        applyPacket(bounds, received);
     }
 
     private static void verifyObjectivePackets() {
