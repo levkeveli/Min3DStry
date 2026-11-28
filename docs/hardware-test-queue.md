@@ -53,6 +53,9 @@ merge:
 - `production-power-liquids`: physical New 3DS production/power/liquid run and
   the Old 3DS XL AppMem footprint measurement (software evidence: host JVM,
   TeaVM C `-O0`/`-O2`, Azahar New/Old).
+- `world-sprite-renderer`: physical New 3DS frame-time sample and visual check
+  of the textured world/unit pass (software evidence: host atlas/region tests,
+  Azahar `ATLAS loaded`, textured screenshots, parity).
 
 They remain `complete` in `docs/mechanics-parity.json`; a failing physical run
 reopens the corresponding entry.
