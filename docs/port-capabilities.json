@@ -161,7 +161,7 @@
       "category": "Rendering & Assets",
       "name": "Textured World & Unit Citro2D Renderer",
       "weight": 6,
-      "stage": "hardware-verified",
+      "stage": "complete",
       "issue": 25,
       "evidence": [
         "src/platform/3ds/citro2d_backend.c",
