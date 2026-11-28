@@ -25,6 +25,7 @@ import arc.math.geom.Vec2;
 import arc.mock.MockAudio;
 import arc.mock.MockGraphics;
 import arc.struct.Seq;
+import arc.struct.ObjectSet;
 import arc.util.Time;
 import arc.util.io.Reads;
 import arc.util.io.Writes;
@@ -111,6 +112,11 @@ import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.units.UnitFactory;
+import mindustry.world.blocks.distribution.ItemBridge;
+import mindustry.world.blocks.distribution.MassDriver;
+import mindustry.world.blocks.payloads.PayloadMassDriver;
+import mindustry.world.blocks.power.PowerNode;
+import mindustry.type.Item;
 
 public final class UpstreamBuildingLayersReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private record Sprite(float x, float y, int page, int left, int top, int width, int height, float rotation, int color, int mixColor, Blending blending) {}
@@ -153,6 +159,65 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         System.out.println("UPSTREAM_CHAT_TOUCH_REFERENCE submit=ok cancel=ok stockLimit=" + Vars.maxTextLength);
     }
 
+    /**
+     * Audits the stock catalog against the staged menu icons and classifies every
+     * configurable catalog block by the stock config shape it exposes.
+     */
+    private static void verifyCatalogCoverage(Fi manifest) {
+        var icons = new ObjectSet<String>();
+        for (String line : manifest.readString().split("\n")) {
+            String[] columns = line.split("\t");
+            if (columns.length >= 2 && !"file".equals(columns[0])) icons.add(columns[1]);
+        }
+
+        var catalog = new UpstreamPlacementCatalog();
+        int entries = 0, missingIcons = 0, item = 0, content = 0, toggle = 0, factory = 0,
+            link = 0, command = 0, text = 0, color = 0, action = 0, unclassified = 0;
+        for (var category : Category.all) {
+            for (var block : catalog.getUnlockedByCategory(category)) {
+                entries++;
+                if (!icons.contains(block.name)) missingIcons++;
+                if (!block.configurable) continue;
+                if (block instanceof PowerNode || block instanceof ItemBridge
+                    || block instanceof MassDriver || block instanceof PayloadMassDriver) {
+                    link++;
+                } else if (block instanceof UnitFactory) {
+                    factory++;
+                } else if (block.configurations.containsKey(Item.class)) {
+                    item++;
+                } else if (block.configurations.containsKey(Boolean.class)) {
+                    toggle++;
+                } else if (block.configurations.containsKey(Block.class)
+                    || block.configurations.containsKey(mindustry.type.UnitType.class)) {
+                    content++;
+                } else if (block.configurations.containsKey(Integer.class)) {
+                    color++;
+                } else if (block.configurations.containsKey(String.class)) {
+                    text++;
+                } else if (block.configurations.containsKey(mindustry.ai.UnitCommand.class)) {
+                    command++;
+                } else if (block.configurations.isEmpty()) {
+                    // Stock tap-action configs (launch pads, accelerators).
+                    action++;
+                } else {
+                    unclassified++;
+                }
+            }
+        }
+        if (missingIcons != 0) {
+            throw new AssertionError("Catalog blocks without a staged menu icon: " + missingIcons);
+        }
+        if (toggle == 0 || content == 0) {
+            throw new AssertionError("Catalog audit did not see the switch/payload-router config kinds");
+        }
+        if (unclassified != 0) {
+            throw new AssertionError("Unclassified stock config kinds: " + unclassified);
+        }
+        System.out.println("UPSTREAM_CONFIG_COVERAGE catalog=" + entries + " icons=ok item=" + item
+            + " content=" + content + " toggle=" + toggle + " factory=" + factory + " link=" + link
+            + " command=" + command + " text=" + text + " color=" + color + " action=" + action + " unclassified=0");
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length == 3 && args[0].equals("--packaged-graphics")) {
             verifySpriteAtlas(new Fi(args[2]));
@@ -176,6 +241,8 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         UpstreamTerrainDrawProbe.loadAtlas(new Fi(args[1]), UpstreamFluidAtlas::load);
         Vars.content.loadColors(new Fi(args[2]));
         UpstreamCrackAtlas.load();
+        Fi menuIcons = new Fi(args[1]).parent().child("menu-icons.tsv");
+        if (menuIcons.exists()) verifyCatalogCoverage(menuIcons);
 
         var target = new UpstreamBuildingLayersReference();
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);

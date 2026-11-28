@@ -36,7 +36,9 @@ import mindustry.world.blocks.distribution.MassDriver;
 import mindustry.world.blocks.distribution.Sorter;
 import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
+import mindustry.world.blocks.logic.SwitchBlock;
 import mindustry.world.blocks.payloads.PayloadMassDriver;
+import mindustry.world.blocks.payloads.PayloadRouter;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.units.UnitFactory;
 
@@ -109,6 +111,7 @@ public final class UpstreamBuildControlsReference {
         verifyStockDragSelection(unit);
         verifyCameraZoom(unit);
         verifyFactoryConfiguration(controls, unit);
+        verifyConfigTables(controls, unit);
         verifyStockLinks(unit);
         verifySchematicPlacement(unit);
         verifySchematicCapture(unit);
@@ -430,6 +433,53 @@ public final class UpstreamBuildControlsReference {
         }
         System.out.println("UPSTREAM_INVENTORY_REFERENCE withdraw=" + capacity + " duo=" + expectedItems
             + " team=ok range=ok cooldown=ok");
+    }
+
+    /**
+     * Covers the two stock config shapes the touch menu previously ignored: the
+     * Boolean switch that toggles on tap and the payload-router content table.
+     */
+    private static void verifyConfigTables(UpstreamLiveBuildControls controls, Unit unit) {
+        var config = controls.buildingConfig();
+        var team = unit.team();
+
+        Vars.world.tile(88, 26).setBlock(Blocks.air);
+        Vars.world.tile(88, 26).setBlock(Blocks.switchBlock, team, 0);
+        var switchBuild = (SwitchBlock.SwitchBuild)Vars.world.tile(88, 26).build;
+        if (switchBuild == null) throw new AssertionError("The stock switch did not build");
+        var oldAudio = Core.audio;
+        Core.audio = new MockAudio();
+        try {
+            boolean before = switchBuild.enabled;
+            config.open(switchBuild);
+            if (config.isOpen() || switchBuild.enabled == before) {
+                throw new AssertionError("Stock switch tap did not toggle the block");
+            }
+            config.open(switchBuild);
+            if (switchBuild.enabled != before) {
+                throw new AssertionError("Stock switch tap did not toggle back");
+            }
+        } finally {
+            Core.audio = oldAudio;
+        }
+
+        Vars.world.tile(90, 26).setBlock(Blocks.air);
+        Vars.world.tile(90, 26).setBlock(Blocks.payloadRouter, team, 0);
+        var router = (PayloadRouter.PayloadRouterBuild)Vars.world.tile(90, 26).build;
+        if (router == null) throw new AssertionError("The stock payload router did not build");
+        config.open(router);
+        if (!config.isOpen() || config.unitPlans() || !config.blockPlans() || config.iconIds()[0] < 0) {
+            throw new AssertionError("Payload router must open its block content table");
+        }
+        controls.update(unit, 0, touch(160, UpstreamBuildMenu.ROW_TOP));
+        if (router.sorted == null) throw new AssertionError("Payload router did not take a sorted block");
+        var selected = router.sorted;
+        config.open(router);
+        int row = config.selectedRow();
+        if (row < 0) throw new AssertionError("Payload router lost its selected row");
+        controls.update(unit, 0, touch(160, UpstreamBuildMenu.ROW_TOP + row * UpstreamBuildMenu.ROW_HEIGHT));
+        if (router.sorted != null) throw new AssertionError("Payload router did not clear its sorted block");
+        System.out.println("UPSTREAM_CONFIG_TABLES switch=ok payload=blocks selected=" + selected.name);
     }
 
     private static void verifyFactoryConfiguration(UpstreamLiveBuildControls controls, Unit unit) throws Exception {

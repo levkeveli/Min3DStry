@@ -216,9 +216,12 @@
       "evidence": [
         "research/upstream-runtime/src/network-live/java/UpstreamBuildMenu.java",
         "research/upstream-runtime/src/network-live/java/UpstreamBuildingConfig.java",
-        "docs/gameplay/touch-build-palette.md"
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java",
+        "docs/gameplay/touch-build-palette.md",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "Full unlocked block catalog with 425/447 icons and bottom-screen Sorter item configuration work live on ARM11; other block config UIs (bridges/factories/processors) pending."
+      "notes": "The unlocked block catalog follows the stock PlacementFragment filter and every catalog-eligible block has a staged menu icon: the audit prints UPSTREAM_CONFIG_COVERAGE catalog=139 icons=ok ... unclassified=0 (the 22 of 447 blocks without icons are hidden/non-placeable and never appear in the catalog). Item tables (Sorter, Unloader, Routers), link blocks, factory plans, the Boolean switch toggle and the payload-router block table are handled by the touch config menu; the switch now toggles on tap like stock instead of opening an empty table, and the payload router clears on a second tap (UPSTREAM_CONFIG_TABLES switch=ok payload=blocks selected=graphite-press, UPSTREAM_CONFIG_TOGGLE x=88 y=26 before=true after=false). Still open: reconstructor command tables (#449) and the logic processor editor (#688)."
     },
     {
       "id": "stock-fonts-i18n-labels",
