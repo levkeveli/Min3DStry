@@ -355,10 +355,14 @@
         "docs/ui/main-menu.md",
         "research/upstream-runtime/src/unified/java/UpstreamUnifiedApp.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
+        "research/upstream-runtime/src/content/java/UpstreamStockSettings.java",
+        "research/upstream-runtime/src/content/java/UpstreamSettingsMenu.java",
+        "research/upstream-runtime/src/content/java/UpstreamStockSettingsReference.java",
         "tools/verify_upstream_singleplayer.py",
-        "tools/verify_upstream_live_net.py"
+        "tools/verify_upstream_live_net.py",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "The unified runtime opens the title on ordinary startup and uses stock v160.8 menu labels, settings, and credits. New 3DS Azahar verified the Core Database, settings persistence, stock schematics, load and return to title, and the title-to-PC-server route. Full stock settings and mod handling remain open."
+      "notes": "The unified runtime opens the title on ordinary startup and uses stock v160.8 menu labels, settings, and credits. New 3DS Azahar verified the Core Database, settings persistence, stock schematics, load and return to title, and the title-to-PC-server route. The shared title/pause settings routes (used by both the offline and unified runtimes) now list the stock Game, Graphics and Sound categories backed by UpstreamStockSettings (the mobile-applicable SettingsMenuDialog keys, defaults, ranges and value formatting); the host reference parses the pinned SettingsMenuDialog source and asserts every key's stock label, upstream default, upstream range, value formatting, check toggle/restore and slider bounds (UPSTREAM_STOCK_SETTINGS entries=35 checks=26 sliders=9 labels=ok source=ok format=ok clamp=ok toggle=ok) and the smoke job greps it. The existing Azahar replay only covers the earlier HUD-toggle persistence path; the new stock category writes are verified by the host probe and smoke grep, not that replay. Still open: mod handling, because v160.8 loads mods as JVM code through Mods.platform.loadJar (URLClassLoader), which the TeaVM/ARM11 runtime cannot execute."
     },
     {
       "id": "player-unit-flight-camera",

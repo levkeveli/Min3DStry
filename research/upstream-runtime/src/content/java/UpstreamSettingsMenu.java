@@ -1,5 +1,6 @@
-/** Stock pause settings submenu for the ported HUD toggles. */
+/** Stock pause/title settings list: HUD toggles, stock categories and Back. */
 public final class UpstreamSettingsMenu {
+    public static final int CATEGORY_GAME = 5, CATEGORY_GRAPHICS = 6, CATEGORY_SOUND = 7, BACK = 8;
     private int selected;
     private boolean coreItems;
     private boolean minimap;
@@ -42,10 +43,10 @@ public final class UpstreamSettingsMenu {
 
     public void move(int direction) {
         if (direction == 0) return;
-        selected = Math.floorMod(selected + direction, 7);
+        selected = Math.floorMod(selected + direction, 9);
     }
 
-    /** Toggles the selected setting and returns its new value; Back returns false. */
+    /** Toggles the selected HUD setting and returns its new value; Back returns false. */
     public boolean toggleSelected() {
         switch (selected) {
             case 0:
@@ -68,11 +69,17 @@ public final class UpstreamSettingsMenu {
         }
     }
 
-    boolean soundSelected() {
-        return selected == 5;
+    /** Stock category id for the selected row, or null for HUD rows/Back. */
+    public String categorySelected() {
+        return switch (selected) {
+            case CATEGORY_GAME -> "game";
+            case CATEGORY_GRAPHICS -> "graphics";
+            case CATEGORY_SOUND -> "sound";
+            default -> null;
+        };
     }
 
     public boolean backSelected() {
-        return selected == 6;
+        return selected == BACK;
     }
 }

@@ -242,8 +242,16 @@ public final class UpstreamStatusRowsProbe {
         }
         System.out.println("UPSTREAM_SETTINGS_POSITION ok");
         settings.move(1);
-        if (!settings.soundSelected() || settings.backSelected()) {
-            throw new IllegalStateException("Settings sound selection mismatch");
+        if (!"game".equals(settings.categorySelected()) || settings.backSelected()) {
+            throw new IllegalStateException("Settings game category mismatch");
+        }
+        settings.move(1);
+        if (!"graphics".equals(settings.categorySelected())) {
+            throw new IllegalStateException("Settings graphics category mismatch");
+        }
+        settings.move(1);
+        if (!"sound".equals(settings.categorySelected())) {
+            throw new IllegalStateException("Settings sound category mismatch");
         }
         settings.move(1);
         if (!settings.backSelected()) throw new IllegalStateException("Settings back selection mismatch");
