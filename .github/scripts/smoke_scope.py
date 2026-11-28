@@ -100,6 +100,14 @@ SINGLEPLAYER_EXACT = {
     "tests/tools/test_verify_upstream_singleplayer.py",
 }
 
+RESEARCH_TREE_EXACT = {
+    "tools/campaign_research_fixture.py",
+    "tools/verify_upstream_campaign_research.py",
+    "research/upstream-runtime/src/singleplayer/java/UpstreamCampaignResearch.java",
+    "research/upstream-runtime/src/singleplayer/java/UpstreamCampaignResearchTree.java",
+    "research/upstream-runtime/src/singleplayer/verification/UpstreamCampaignResearchTreeReference.java",
+}
+
 FULL_SUITE_EXACT = {
     ".github/scripts/build_unified_arm11_smoke.sh",
     ".github/scripts/build_teavm_host.sh",
@@ -126,6 +134,7 @@ def _full_scope() -> dict[str, Any]:
         "run_production": True,
         "run_factory": True,
         "run_singleplayer": True,
+        "run_research_tree": True,
         "run_campaign_resume": True,
     }
 
@@ -215,6 +224,11 @@ def _classify_path(path: str, flags: dict[str, bool], probes: set[str]) -> str:
         flags["run_factory"] = True
         return "scoped"
 
+    if norm in RESEARCH_TREE_EXACT:
+        flags["run_research_tree"] = True
+        flags["run_singleplayer"] = True
+        return "scoped"
+
     if norm in CAMPAIGN_RESUME_EXACT:
         flags["run_singleplayer"] = True
         flags["run_campaign_resume"] = True
@@ -265,6 +279,7 @@ def classify_smoke_scope(changed_files: list[str], event_name: str) -> dict[str,
         "run_production": False,
         "run_factory": False,
         "run_singleplayer": False,
+        "run_research_tree": False,
         "run_campaign_resume": False,
     }
     probes: set[str] = set()
@@ -289,6 +304,7 @@ def classify_smoke_scope(changed_files: list[str], event_name: str) -> dict[str,
         "run_production": flags["run_production"],
         "run_factory": flags["run_factory"],
         "run_singleplayer": flags["run_singleplayer"],
+        "run_research_tree": flags["run_research_tree"],
         "run_campaign_resume": flags["run_campaign_resume"],
     }
 
@@ -358,6 +374,7 @@ def format_outputs(scope: dict[str, Any]) -> dict[str, str]:
         "run_production": "true" if scope["run_production"] else "false",
         "run_factory": "true" if scope["run_factory"] else "false",
         "run_singleplayer": "true" if scope["run_singleplayer"] else "false",
+        "run_research_tree": "true" if scope["run_research_tree"] else "false",
         "run_campaign_resume": "true" if scope["run_campaign_resume"] else "false",
     }
 

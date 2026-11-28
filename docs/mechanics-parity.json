@@ -532,9 +532,10 @@
       "evidence": [
         "docs/rendering/live-hud.md",
         "docs/gameplay/offline-singleplayer.md",
-        "tools/verify_upstream_campaign_launch.py"
+        "tools/verify_upstream_campaign_launch.py",
+        "tools/verify_upstream_campaign_research.py"
       ],
-      "notes": "The New 3DS replay drew the original interactive Serpulo and Erekir globes with stock grids and markers, rotated across numbered Serpulo sectors, and started The Onset from the Erekir preview. The original v160.8 Java release reopened that exact save. The sector selector supports launch destinations, schematics and cargo, and Campaign Research opens from the pause menu. The wider solar-system view and full tech-tree interface remain open."
+      "notes": "New 3DS Azahar drew the stock Serpulo and Erekir globes with grids and markers and launched The Onset from its Erekir preview. The sector selector supports launch destinations, schematics and cargo. Research opens from the globe or pause menu, uses stock tree positions, and supports node selection, zoom, and switching planets. Stock Java read back partial Conveyor research and unlocked Duct. The wider solar-system view remains open."
     },
     {
       "id": "erekir-planet-mechanics",

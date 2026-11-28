@@ -79,3 +79,15 @@ Offline resume restores player position, team, controlled unit and control
 groups from the metadata of the save that actually loaded. If the primary
 save has readable metadata but fails later in the stock loader, the backup
 world receives the backup player metadata.
+
+The planet map exposes the stock Tech Tree with R and opens the selected
+planet's research tree. X cycles eligible stock trees inside the research
+screen. With no active world, contributions debit saved sector inventories
+and flush the original Arc settings. In a running campaign, contributions
+also save the active sector through the existing campaign save path.
+
+The [New 3DS replay at `072bc13`](https://github.com/levkeveli/Min3DStry/actions/runs/45742351182/artifacts/15083329350)
+captured the Serpulo and Erekir root trees and the planet-map entry. The
+stock Java reader reopened both campaign saves and verified the research
+and inventory. The globe contribution check also compared the stored
+sector file before and after research.

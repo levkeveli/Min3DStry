@@ -370,6 +370,22 @@ python3 tools/campaign_research_fixture.py --server server-release.jar --check-p
 python3 tools/verify_upstream_campaign_research.py --rom upstream-probe.3dsx --fixtures /path/to/fixtures --server server-release.jar
 ```
 
+The New 3DS research tree uses the original positions and branches from
+v160.8 `ResearchDialog` and `BranchTreeLayout`. The D-pad or Circle Pad
+selects a node and centers it on the top screen. A or the Info touch button
+opens the objectives and research requirements. Zoom with the C-Stick
+or the touch buttons. Y opens the Core Database and closes the research
+screen, matching the stock research menu. Unlocking a node reveals
+its descendants in their original positions. The stock JVM reference
+compares the complete Serpulo and Erekir layouts, and the emulator verifier
+captures the tree before examining the node details and stock save readback.
+The [New 3DS replay at `072bc13`](https://github.com/levkeveli/Min3DStry/actions/runs/45742351182/artifacts/15083329350)
+partially researched Conveyor on Serpulo and unlocked Duct on Erekir.
+Stock Java reopened both saves and checked their inventory and research
+settings. The globe replay zoomed to 90%, switched from Serpulo to Erekir
+and back, and contributed to Conveyor without rewriting the stored sector.
+The replay checks that the original root icons render inside their nodes.
+
 ## Serpulo background production and exports
 
 The offline session advances the original universe through

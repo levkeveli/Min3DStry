@@ -5,17 +5,19 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import time
 from pathlib import Path
 
 import verify_upstream_singleplayer as sp
 from campaign_research_fixture import CASES, check
 from verify_upstream_campaign_launch import write_input_replay
+from verify_upstream_factory_plans import write_movie
 
 
 def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: Path,
-           fixtures: Path, output: Path) -> tuple[Path, Path]:
+           fixtures: Path, output: Path, *, globe: bool = False) -> tuple[Path, Path]:
     _, name, _, _, block, _, _, unlocked = CASES[planet]
-    prefix = f"{model}-{planet}"
+    prefix = f"{model}-{planet}-globe" if globe else f"{model}-{planet}"
     sd = (output / "virtual-sd" / prefix).resolve()
     root = sd / "3ds/min3dstry"
     saves = root / "saves"
@@ -31,22 +33,60 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
         (115, 117, 1 << 1),
         (129, 131, sp.KEY_START),
     ]
-    write_input_replay(replay, model, window, 129, b"Min3DStry Campaign Research")
+    if globe:
+        window = [
+            (0, 24, 1 << 8),
+            (44, 49, sp.KEY_X),
+            (112, 116, 1 << 8),
+            (159, 161, sp.KEY_X),
+            (178, 180, sp.KEY_X),
+            (193, 195, 1 << 7),
+            (200, 202, 1),
+            (215, 217, 1),
+            (224, 226, 1 << 1),
+            (233, 235, sp.KEY_Y),
+            (245, 247, sp.KEY_B),
+            (256, 258, sp.KEY_B),
+            (268, 270, sp.KEY_B),
+        ]
+        write_movie(replay, model, taps={143: (160, 222)}, buttons={start: key for start, _, key in window},
+                    button_durations={start: end - start for start, end, _ in window}, seconds=284)
+    else:
+        write_input_replay(replay, model, window, 129, b"Min3DStry Campaign Research")
 
     config_snapshot = config.read_bytes() if config.is_file() else None
     saves.mkdir(parents=True)
     sp.stage_direct_startup(sd)
     try:
         shutil.copyfile(fixtures / name, slot)
-        shutil.copyfile(fixtures / f"{planet}-settings.bin", settings)
+        fixture_settings = "serpulo-globe-settings.bin" if globe else f"{planet}-settings.bin"
+        shutil.copyfile(fixtures / fixture_settings, settings)
         storage = {"Data Storage": {"use_custom_storage": "true", "sdmc_directory": sd.as_posix() + "/"}}
         config.parent.mkdir(parents=True, exist_ok=True)
         config.write_text(sp.az.patch_qt_config_text((config_snapshot or b"").decode("utf-8"), storage),
                           encoding="utf-8")
         proc, rpc = sp._launch_azahar(model, rom, azahar, config, log, replay)
         try:
-            sp._wait_for_log(log, proc, r"UPSTREAM_SP_LOADED source=campaign\b", 120)
+            if globe:
+                sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_GLOBE_RESEARCH planet=serpulo\b", 200)
+            else:
+                sp._wait_for_log(log, proc, r"UPSTREAM_SP_LOADED source=campaign\b", 120)
             sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_RESEARCH_OPEN tree={planet}\b", 160)
+            sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_RESEARCH_TREE_FRAME tree={planet}\b", 30)
+            tree = rpc.screenshot()
+            (output / f"{prefix}-tree.png").write_bytes(tree)
+            # The selected root starts centered. Sample well inside its frame,
+            # where the stock icon must cover the plain background.
+            icon_points = tuple((x, y) for y in range(110, 131, 5) for x in range(190, 211, 5))
+            image = sp.az.inspect_png(tree, icon_points)
+            if image["top_distinct_colors"] < 8 or len(set(image["samples"].values())) < 4:
+                raise AssertionError(f"{prefix}: the research tree or its centered stock icon did not render")
+            if globe:
+                sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_RESEARCH_ZOOM tree=serpulo percent=90\b", 90)
+                time.sleep(1)
+                (output / f"{prefix}-zoom.png").write_bytes(rpc.screenshot())
+                sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_RESEARCH_SWITCH tree=erekir\b", 100)
+                sp._wait_for_log(log, proc, r"UPSTREAM_CAMPAIGN_RESEARCH_SWITCH tree=serpulo\b", 90)
             sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_RESEARCH_SELECTED node={block} selectable=true\b", 90)
             screenshot = rpc.screenshot()
             if sp.az.inspect_png(screenshot)["top_distinct_colors"] < 8:
@@ -54,8 +94,15 @@ def verify(model: str, planet: str, rom: Path, azahar: str, config: Path, log: P
             (output / f"{prefix}-research.png").write_bytes(screenshot)
             sp._wait_for_log(log, proc,
                              rf"UPSTREAM_CAMPAIGN_RESEARCH_CHANGED node={block} unlocked={str(unlocked).lower()}\b", 90)
-            sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={name}\b", 90)
-            sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 20)
+            if not globe:
+                sp._wait_for_log(log, proc, rf"UPSTREAM_CAMPAIGN_SAVED slot={name}\b", 90)
+            else:
+                sp._wait_for_log(log, proc, r"UPSTREAM_DATABASE_OPEN tab=sun rows=[1-9][0-9]*", 35)
+                (output / f"{prefix}-database.png").write_bytes(rpc.screenshot())
+                sp._wait_for_log(log, proc, r"UPSTREAM_DATABASE_CLOSE\b", 30)
+            transcript = sp._wait_for_log(log, proc, r"UPSTREAM_SP_EXIT\b", 90 if globe else 20)
+            if globe and ("UPSTREAM_SP_LOADED" in transcript or slot.read_bytes() != (fixtures / name).read_bytes()):
+                raise AssertionError("Research from the globe opened or rewrote the stored sector world")
             result = output / f"{prefix}-{name}"
             result_settings = output / f"{prefix}-settings.bin"
             shutil.copyfile(slot, result)
@@ -92,6 +139,10 @@ def main() -> None:
             world, settings = verify(model, planet, args.rom, azahar, config, log, args.fixtures, args.output_dir)
             check(args.java, args.server, planet, world, settings)
             print(f"[PASS] {model} {planet} controller research", flush=True)
+        if args.planet is None:
+            world, settings = verify(model, "serpulo", args.rom, azahar, config, log, args.fixtures,
+                                     args.output_dir, globe=True)
+            check(args.java, args.server, "serpulo", world, settings, globe=True)
 
 
 if __name__ == "__main__":
