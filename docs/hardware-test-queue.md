@@ -68,6 +68,9 @@ merge:
 - `lighting-weather-fx-zoom`: physical frame time and draw check for the light
   buffer, shadows and C-Stick camera zoom (software evidence: host markers plus
   the merged ARM11 build and Azahar world replays).
+- `touch-build-palette`: physical touch accuracy and palette frame time with the
+  full catalog paged through (software evidence: host catalog paging/icon
+  markers, Azahar menu-icon replay and the live build queue).
 
 They remain `complete` in `docs/mechanics-parity.json`; a failing physical run
 reopens the corresponding entry.

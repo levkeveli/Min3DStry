@@ -218,6 +218,42 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             + " command=" + command + " text=" + text + " color=" + color + " action=" + action + " unclassified=0");
     }
 
+    /**
+     * Walks every unlocked category page through the touch catalog adapter and
+     * fails if a page is unreachable or paging overshoots the stock entry count.
+     */
+    private static void verifyPalettePaging() {
+        var catalog = new UpstreamPlacementCatalog();
+        var menu = new UpstreamBuildMenu();
+        int categories = 0, entries = 0, pages = 1;
+        for (var category : Category.all) {
+            var blocks = catalog.getUnlockedByCategory(category);
+            if (blocks.isEmpty()) continue;
+            categories++;
+            entries += blocks.size;
+            int expected = (blocks.size + UpstreamBuildMenu.ROWS - 1) / UpstreamBuildMenu.ROWS;
+            pages = Math.max(pages, expected);
+            menu.open(blocks.first());
+            int visited = 1;
+            while (menu.nextPage()) {
+                if (visited > 64) throw new AssertionError("Catalog paging did not terminate");
+                menu.tap(276, UpstreamBuildMenu.FOOTER_TOP + 8);
+                if (visited >= expected) {
+                    throw new AssertionError("Catalog paged past " + expected + " pages in "
+                        + category.name());
+                }
+                visited++;
+            }
+            if (visited != expected) {
+                throw new AssertionError("Category " + category.name() + " pages " + visited
+                    + " of " + expected);
+            }
+            menu.tap(160, 218);
+        }
+        System.out.println("UPSTREAM_PALETTE_CATALOG categories=" + categories + " entries=" + entries
+            + " pages=" + pages + " paging=ok");
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length == 3 && args[0].equals("--packaged-graphics")) {
             verifySpriteAtlas(new Fi(args[2]));
@@ -243,6 +279,7 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         UpstreamCrackAtlas.load();
         Fi menuIcons = new Fi(args[1]).parent().child("menu-icons.tsv");
         if (menuIcons.exists()) verifyCatalogCoverage(menuIcons);
+        verifyPalettePaging();
 
         var target = new UpstreamBuildingLayersReference();
         var viewport = UpstreamTerrainDrawProbe.liveViewport(target);

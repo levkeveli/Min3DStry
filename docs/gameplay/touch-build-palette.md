@@ -396,9 +396,10 @@ python3 tools/verify_upstream_factory_plans.py \
 
 ## Limits
 
-- The palette is a bounded prototype, not the final upstream layout; not every
-  catalog page or configurable block has an automated replay.
-- Physical touch hardware and the full catalog remain open with #27/#43.
+- The 240 px bottom screen uses the port's six-row icon+name layout instead of
+  the desktop grid; categories, stock unlock order, icons and paging match the
+  pinned `PlacementFragment` data.
+- Physical touch hardware and frame time remain open with #27/#43.
 
 ## Host verification
 
@@ -417,4 +418,19 @@ at `86,26` and its breaking plan. The second cycles the stock rotate input four
 times (rotation advances `1,2,3,0`) and then validates the stock build plan
 through `Build.validPlace`/`Tile.setBlock` (the block and rotation are applied)
 and the breaking plan through `Build.validBreak`, which clears the tile.
+
+## Catalog paging
+
+The building-layer reference walks the stock catalog adapter over every
+unlocked category and page and asserts each page is reachable and terminates at
+the stock entry count:
+
+```
+UPSTREAM_PALETTE_CATALOG categories=10 entries=139 pages=3 paging=ok
+```
+
+The unified-build smoke job greps this next to the live menu-icon replay
+(`UPSTREAM_MENU_ICONS type=block drawn=6`), so the palette pages and their stock
+icons are covered without a handheld run. Physical touch/frame-time residue is
+tracked in [hardware-test-queue.md](../hardware-test-queue.md).
 

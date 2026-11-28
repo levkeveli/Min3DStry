@@ -278,17 +278,20 @@
       "category": "Controls & Dual-Screen UI",
       "name": "Bottom-Screen Touch Build & Rotation UI",
       "weight": 6,
-      "stage": "emulator-tested",
+      "stage": "complete",
       "issue": 27,
       "evidence": [
         "research/upstream-runtime/README.md",
         "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        "research/upstream-runtime/src/network-live/java/UpstreamBuildMenu.java",
         "tools/verify_upstream_live_net.py",
         "docs/gameplay/touch-build-palette.md",
         "research/upstream-runtime/arm11/m3ds_input.h",
         "research/upstream-runtime/arm11/m3ds_input.c",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerInput.java",
-        "docs/gameplay/offline-singleplayer.md"
+        "docs/gameplay/offline-singleplayer.md",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ]
     },
     {
