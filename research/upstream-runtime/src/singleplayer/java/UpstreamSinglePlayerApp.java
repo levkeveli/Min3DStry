@@ -673,26 +673,16 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private int chooseTitlePagedRow(String title, int count, int selected, java.util.function.IntFunction<String> option) {
-        final int pageSize = 7;
         while (true) {
-            int first = selected / pageSize * pageSize;
-            int end = Math.min(first + pageSize, count);
-            var options = new String[end - first + (first > 0 ? 1 : 0) + (end < count ? 1 : 0)];
-            int offset = first > 0 ? 1 : 0;
-            if (offset == 1) options[0] = "<";
-            for (int index = first; index < end; index++) {
-                options[offset + index - first] = option.apply(index);
-            }
-            if (end < count) options[options.length - 1] = ">";
-            int row = chooseTitleRow(title, offset + selected - first, options);
+            var page = UpstreamSavePicker.page(count, selected);
+            var labels = new java.util.ArrayList<String>(page.end() - page.first());
+            for (int index = page.first(); index < page.end(); index++) labels.add(option.apply(index));
+            int row = chooseTitleRow(title, UpstreamSavePicker.highlight(page, selected),
+                UpstreamSavePicker.rows(labels, page));
             if (row < 0) return row;
-            if (row < offset) {
-                selected = first - 1;
-            } else if (first + row - offset >= end) {
-                selected = end;
-            } else {
-                return first + row - offset;
-            }
+            int index = UpstreamSavePicker.choose(page, row);
+            if (index >= 0) return index;
+            selected = UpstreamSavePicker.next(page, row);
         }
     }
 
@@ -1359,6 +1349,30 @@ public final class UpstreamSinglePlayerApp {
                         if (action == UpstreamPauseMenu.Action.RESUME) {
                             closePauseMenu();
                         } else if (action == UpstreamPauseMenu.Action.LOAD) {
+                            Fi target = saveFile;
+                            boolean picked = false;
+                            int saveCount = 0;
+                            if (campaignSlot == null) {
+                                // Stock LoadDialog: newest save first, paged, load the chosen slot.
+                                var saves = UpstreamCustomGameSaves.discoverForTitle(Vars.saveDirectory);
+                                saveCount = saves.size();
+                                if (saves.isEmpty()) {
+                                    if (chooseTitleRow(Core.bundle.get("save.none"), "back") == -2) return false;
+                                    previousTime = System.nanoTime();
+                                    accumulator = 0L;
+                                    continue;
+                                }
+                                int chosen = chooseTitlePagedRow(Core.bundle.get("loadgame"), saves.size(), 0,
+                                    index -> saves.get(index).title());
+                                if (chosen == -2) return false;
+                                if (chosen < 0) {
+                                    previousTime = System.nanoTime();
+                                    accumulator = 0L;
+                                    continue;
+                                }
+                                target = saves.get(chosen).file();
+                                picked = true;
+                            }
                             closePauseMenu();
                             var loadSector = Vars.state.rules.sector;
                             // Drop UI and player references before decoding the replacement world.
@@ -1368,14 +1382,17 @@ public final class UpstreamSinglePlayerApp {
                             var slotToReload = campaignSlot;
                             // A failed decode must not let the exit handler overwrite this save.
                             campaignSlot = null;
-                            session.start(sourceMap, saveFile, slotToReload == null ? null : "campaign", loadSector);
+                            session.start(sourceMap, target,
+                                slotToReload == null ? (picked ? "load" : null) : "campaign", loadSector);
                             campaignSlot = slotToReload;
                             weatherLayers.reset();
                             reportWeather();
                             uploadMinimap();
                             previousTime = System.nanoTime();
                             accumulator = 0L;
-                            System.out.println("UPSTREAM_PAUSE_MENU load=true");
+                            System.out.println("UPSTREAM_PAUSE_MENU load=true picker="
+                                + (picked ? "saves" : "current") + " saves=" + saveCount
+                                + " file=" + target.name());
                             continue;
                         } else if (action == UpstreamPauseMenu.Action.RESEARCH) {
                             closePauseMenu();

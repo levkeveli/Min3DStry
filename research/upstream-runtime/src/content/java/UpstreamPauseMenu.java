@@ -12,7 +12,10 @@ public final class UpstreamPauseMenu {
     }
 
     private static final Action[] standalone = {Action.RESUME, Action.SAVE, Action.QUIT};
-    private static final Action[] standaloneSettings = {Action.RESUME, Action.SAVE, Action.SETTINGS, Action.QUIT};
+    // Stock mobile row order: back, settings, save, load (hostserver is not wired yet).
+    private static final Action[] standaloneSettings = {
+        Action.RESUME, Action.SETTINGS, Action.SAVE, Action.LOAD, Action.QUIT
+    };
     private static final Action[] campaign = {
         Action.RESUME, Action.RESEARCH, Action.LOAD, Action.SAVE, Action.SETTINGS, Action.QUIT
     };

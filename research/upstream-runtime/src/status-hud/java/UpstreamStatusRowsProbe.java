@@ -218,6 +218,28 @@ public final class UpstreamStatusRowsProbe {
                 || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
             throw new IllegalStateException("Pause menu six-row quit mismatch");
         }
+        // Non-campaign world: stock mobile order is back, settings, save, load, quit.
+        pause.openWorld(false);
+        if (pause.options() != 5) throw new IllegalStateException("Pause menu world options mismatch");
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SETTINGS) {
+            throw new IllegalStateException("Pause menu world settings mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.SAVE) {
+            throw new IllegalStateException("Pause menu world save mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.LOAD) {
+            throw new IllegalStateException("Pause menu world load mismatch");
+        }
+        pause.move(1);
+        if (pause.activate() != UpstreamPauseMenu.Action.NONE
+                || pause.activate() != UpstreamPauseMenu.Action.QUIT) {
+            throw new IllegalStateException("Pause menu world quit mismatch");
+        }
+        pause.openWorld(true);
+        if (pause.options() != 6) throw new IllegalStateException("Pause menu campaign options mismatch");
         var settings = new UpstreamSettingsMenu();
         settings.open(true, true, true, false, false);
         if (!settings.coreItems() || !settings.minimap() || !settings.weather()
@@ -315,7 +337,45 @@ public final class UpstreamStatusRowsProbe {
             throw new IllegalStateException("Minimap view reset mismatch");
         }
         System.out.println("UPSTREAM_MINIMAP_VIEW cases=5 ok");
-        System.out.println("UPSTREAM_PAUSE_MENU cases=22 ok");
+        var shortPage = UpstreamSavePicker.page(3, 0);
+        if (shortPage.previous() || shortPage.next() || shortPage.rows() != 3
+                || UpstreamSavePicker.highlight(shortPage, 2) != 2
+                || UpstreamSavePicker.choose(shortPage, 2) != 2
+                || UpstreamSavePicker.next(shortPage, 2) != -1) {
+            throw new IllegalStateException("Save picker single-page mismatch");
+        }
+        if (!Arrays.equals(UpstreamSavePicker.rows(List.of("a", "b", "c"), shortPage),
+                new String[]{"a", "b", "c"})) {
+            throw new IllegalStateException("Save picker single-page rows mismatch");
+        }
+        var brandNew = UpstreamSavePicker.page(0, 0);
+        if (brandNew.rows() != 0 || brandNew.previous() || brandNew.next()) {
+            throw new IllegalStateException("Save picker empty page mismatch");
+        }
+        var firstPage = UpstreamSavePicker.page(10, 0);
+        if (firstPage.previous() || !firstPage.next() || firstPage.rows() != 8
+                || UpstreamSavePicker.highlight(firstPage, 0) != 0
+                || UpstreamSavePicker.choose(firstPage, 7) != -1
+                || UpstreamSavePicker.next(firstPage, 7) != 7
+                || UpstreamSavePicker.next(firstPage, 3) != -1) {
+            throw new IllegalStateException("Save picker first page mismatch");
+        }
+        var lastPage = UpstreamSavePicker.page(10, 7);
+        if (!lastPage.previous() || lastPage.next() || lastPage.rows() != 4
+                || UpstreamSavePicker.highlight(lastPage, 7) != 1
+                || UpstreamSavePicker.choose(lastPage, 0) != -1
+                || UpstreamSavePicker.choose(lastPage, 1) != 7
+                || UpstreamSavePicker.choose(lastPage, 3) != 9
+                || UpstreamSavePicker.next(lastPage, 0) != 6) {
+            throw new IllegalStateException("Save picker last page mismatch");
+        }
+        if (!Arrays.equals(UpstreamSavePicker.rows(
+                List.of("0", "1", "2", "3", "4", "5", "6", "7", "8", "9"), lastPage),
+                new String[]{"<", "7", "8", "9"})) {
+            throw new IllegalStateException("Save picker last-page rows mismatch");
+        }
+        System.out.println("UPSTREAM_SAVE_PICKER pages=2 rows=ok select=ok empty=ok");
+        System.out.println("UPSTREAM_PAUSE_MENU cases=24 ok");
         System.out.println("UPSTREAM_STATUS_ROWS cases=10 ok");
         System.out.println("UPSTREAM_GUARDIAN_WARNING cases=2 ok");
         System.out.println("UPSTREAM_UNIT_ROWS cases=3 ok");

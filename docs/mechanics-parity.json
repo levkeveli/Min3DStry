@@ -304,11 +304,15 @@
         "docs/rendering/live-hud.md",
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
+        "research/upstream-runtime/src/content/java/UpstreamPauseMenu.java",
+        "research/upstream-runtime/src/content/java/UpstreamSavePicker.java",
+        "research/upstream-runtime/src/status-hud/java/UpstreamStatusRowsProbe.java",
         "docs/ui/pause-menu.md",
         "src/ui/pause_menu.c",
-        "src/ui/pause_overlay.c"
+        "src/ui/pause_overlay.c",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "The live ARM11 renderer draws the stock pause overlay with Resume, Research, Load Game, Save Game and Quit. Load Game reopens the active save. X opens and closes it and freezes simulation unless the stock rules disable pausing. Settings, planet map and save-picker load remain open, so this is not claimed complete."
+      "notes": "The live ARM11 renderer draws the stock pause overlay with Resume, Research, Load Game, Save Game, Settings and Quit. X opens and closes it and freezes simulation unless the stock rules disable pausing. Settings now exposes the stock Game/Graphics/Sound categories, and the non-campaign Load route opens the stock save list (every valid non-sector save newest first, seven rows per page with page rows) instead of silently reloading the current file; the paging maths is shared with the title Load Game route and asserted by the host status probe (UPSTREAM_SAVE_PICKER pages=2 rows=ok select=ok empty=ok, UPSTREAM_PAUSE_MENU cases=24 ok), which the smoke job now greps. Campaign Load keeps the current-slot reload because campaign slots need their sector context. The campaign planet-map route remains open in the campaign PRs, so this is not claimed complete."
     },
     {
       "id": "menus-schematics-rts",
