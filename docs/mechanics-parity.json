@@ -193,16 +193,17 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Touch Build, Rotate (R), Deconstruct (B) & BuildPlans",
       "weight": 3,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 27,
       "evidence": [
         "docs/gameplay/touch-build-palette.md",
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/network-live/java/UpstreamLiveBuildControls.java",
+        "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerInput.java"
       ],
-      "notes": "Stylus tile placement, 4-way rotation, deconstruction, and BuildPlan queue execution work live in offline and multiplayer ARM11 builds."
+      "notes": "Stylus tile placement, 4-way rotation, deconstruction, and BuildPlan queue execution work live in offline and multiplayer ARM11 builds. The host reference now drives the touch adapter against a captured stock WorldStream and asserts the queued conveyor at 85,26 with rotation 1, the copper wall at 86,26, and the breaking plan at 86,26 (UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26). It also cycles the stock rotation input four times and checks the plan rotation advances 1,2,3,0, then validates and applies the stock build plan through Build.validPlace/Tile.setBlock (block and rotation applied), validates the breaking plan through Build.validBreak and clears the tile (UPSTREAM_STOCK_BUILD_PLANS rotations=1,2,3,0 place=ok break=ok). Run with -Pprobe=network-live runBuildControlsJvm --args=<world-stream>. Software complete."
     },
     {
       "id": "block-catalog-item-config",
@@ -215,25 +216,34 @@
       "evidence": [
         "research/upstream-runtime/src/network-live/java/UpstreamBuildMenu.java",
         "research/upstream-runtime/src/network-live/java/UpstreamBuildingConfig.java",
-        "docs/gameplay/touch-build-palette.md"
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        "research/upstream-runtime/src/network-live/host/UpstreamBuildControlsReference.java",
+        "docs/gameplay/touch-build-palette.md",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "Full unlocked block catalog with 425/447 icons and bottom-screen Sorter item configuration work live on ARM11; other block config UIs (bridges/factories/processors) pending."
+      "notes": "The unlocked block catalog follows the stock PlacementFragment filter and every catalog-eligible block has a staged menu icon: the audit prints UPSTREAM_CONFIG_COVERAGE catalog=139 icons=ok ... unclassified=0 (the 22 of 447 blocks without icons are hidden/non-placeable and never appear in the catalog). Item tables (Sorter, Unloader, Routers), link blocks, factory plans, the Boolean switch toggle and the payload-router block table are handled by the touch config menu; the switch now toggles on tap like stock instead of opening an empty table, and the payload router clears on a second tap (UPSTREAM_CONFIG_TABLES switch=ok payload=blocks selected=graphite-press, UPSTREAM_CONFIG_TOGGLE x=88 y=26 before=true after=false). Still open: reconstructor command tables (#449) and the logic processor editor (#688)."
     },
     {
       "id": "stock-fonts-i18n-labels",
       "domain": "Controls & Dual-Screen UI",
       "name": "Stock v160.8 Fonts, Localization Bundles & World Labels",
       "weight": 2,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer"],
       "issue": 40,
       "evidence": [
         "research/upstream-runtime/arm11/m3ds_stock_font.c",
         "research/upstream-runtime/arm11/m3ds_stock_text.c",
+        "research/upstream-runtime/arm11/test_stock_font.c",
         "research/upstream-runtime/src/network-live/java/UpstreamInterfaceLocale.java",
-        "research/upstream-runtime/src/network-render/java/UpstreamObjectiveMarkers.java"
+        "research/upstream-runtime/src/network-live/host/UpstreamStockLocaleReference.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamObjectiveMarkers.java",
+        "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        "tools/verify_upstream_singleplayer.py",
+        "docs/gameplay/offline-singleplayer.md",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "Upstream bitmap/TTF font rasterization, inline emoji icons, locale bundles (incl. JP), and world objective markers/labels render on ARM11."
+      "notes": "Upstream bitmap/TTF font rasterization, inline emoji icons, locale bundles (incl. JP), and world objective markers/labels render on the ARM11 offline and live clients; the Azahar offline replay (tools/verify_upstream_singleplayer.py) and the campaign globe replay exercise the stock fonts and bundles on both profiles. The host font test now runs in the smoke job: it opens the stock 18 px game face, the Japanese face, the 30 px icon face and the 2 px outline, asserts the stock Latin glyph mask, the Japanese face selection for 0x63a1, the Iconc.tree icon glyph, the outline border, distinct non-empty masks and RGBA texel packing (UPSTREAM_STOCK_FONT latin=ok japanese=ok tree=ok outline=ok fallback=ok texel=ok distinct=ok); it reports structural facts instead of FreeType-build-specific hashes. A new locale reference loads every shipped bundle file through the port's interface loader (requested-locale path, not the fallback index), asserts each locale parsed non-empty with an English fallback parent, and checks the block/item/liquid/unit keys plus unit.thousands/millions/billions, keeping English and Japanese catalog labels distinct (UPSTREAM_STOCK_LOCALES files=35 localized=34 parsed=ok keys=ok fallback=ok en=Conveyor ja=ok). Objective item/build labels are grepped from the building-layer reference (UPSTREAM_OBJECTIVE_HUD_REFERENCE item=beryllium build=turbine-condenser hidden=filtered). Software complete with host plus Azahar evidence."
     },
     {
       "id": "top-screen-status-hud",
@@ -255,15 +265,17 @@
       "domain": "Controls & Dual-Screen UI",
       "name": "Session Controls (Pause/Resume, Next Wave, Quick-Save)",
       "weight": 2,
-      "status": "live-arm11",
+      "status": "complete",
       "modes": ["offline"],
       "issue": 27,
       "evidence": [
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/arm11/m3ds_input.c",
-        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java"
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
+        "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerSession.java",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "X pause/resume, Y wave trigger, and SELECT quick-save work in offline single-player. The live pause menu opens on X, freezes the simulation when the stock rules allow pausing, and returns to play on Resume."
+      "notes": "X pause/resume, Y wave trigger, and SELECT quick-save work in offline single-player, and the live pause menu opens on X, freezes the simulation when the stock rules allow pausing, and returns to play on Resume. The singleplayer host probe now asserts the full control set on the stock Ground Zero map: pause freezes Vars.state.updateId for 30 ticks and resume continues, the pause-disabled rule keeps the simulation running (UPSTREAM_SP_NO_PAUSE simulation=running), the wave trigger spawns wave 1 and reaches wave 2 with an advancing enemy, and the quick-save writes a non-empty .msav that reloads to the same wave, core copper and enemy count. Combined marker: UPSTREAM_SP_CONTROLS pause=ok pauseDisabled=ok wave=2 save=ok reload=ok (inside the full UPSTREAM_SP_SIM_PASS trace), now grepped by the singleplayer baseline job. Software complete."
     },
     {
       "id": "live-minimap",
@@ -292,11 +304,15 @@
         "docs/rendering/live-hud.md",
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
+        "research/upstream-runtime/src/content/java/UpstreamPauseMenu.java",
+        "research/upstream-runtime/src/content/java/UpstreamSavePicker.java",
+        "research/upstream-runtime/src/status-hud/java/UpstreamStatusRowsProbe.java",
         "docs/ui/pause-menu.md",
         "src/ui/pause_menu.c",
-        "src/ui/pause_overlay.c"
+        "src/ui/pause_overlay.c",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "The live ARM11 renderer draws the stock pause overlay with Resume, Research, Load Game, Save Game and Quit. Load Game reopens the active save. X opens and closes it and freezes simulation unless the stock rules disable pausing. Settings, planet map and save-picker load remain open, so this is not claimed complete."
+      "notes": "The live ARM11 renderer draws the stock pause overlay with Resume, Research, Load Game, Save Game, Settings and Quit. X opens and closes it and freezes simulation unless the stock rules disable pausing. Settings now exposes the stock Game/Graphics/Sound categories, and the non-campaign Load route opens the stock save list (every valid non-sector save newest first, seven rows per page with page rows) instead of silently reloading the current file; the paging maths is shared with the title Load Game route and asserted by the host status probe (UPSTREAM_SAVE_PICKER pages=2 rows=ok select=ok empty=ok, UPSTREAM_PAUSE_MENU cases=24 ok), which the smoke job now greps. Campaign Load keeps the current-slot reload because campaign slots need their sector context. The campaign planet-map route remains open in the campaign PRs, so this is not claimed complete."
     },
     {
       "id": "menus-schematics-rts",
@@ -343,10 +359,14 @@
         "docs/ui/main-menu.md",
         "research/upstream-runtime/src/unified/java/UpstreamUnifiedApp.java",
         "research/upstream-runtime/src/singleplayer/java/UpstreamSinglePlayerApp.java",
+        "research/upstream-runtime/src/content/java/UpstreamStockSettings.java",
+        "research/upstream-runtime/src/content/java/UpstreamSettingsMenu.java",
+        "research/upstream-runtime/src/content/java/UpstreamStockSettingsReference.java",
         "tools/verify_upstream_singleplayer.py",
-        "tools/verify_upstream_live_net.py"
+        "tools/verify_upstream_live_net.py",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "The unified runtime opens the title on ordinary startup and uses stock v160.8 menu labels, settings, and credits. New 3DS Azahar verified the Core Database, settings persistence, stock schematics, load and return to title, and the title-to-PC-server route. Full stock settings and mod handling remain open."
+      "notes": "The unified runtime opens the title on ordinary startup and uses stock v160.8 menu labels, settings, and credits. New 3DS Azahar verified the Core Database, settings persistence, stock schematics, load and return to title, and the title-to-PC-server route. The shared title/pause settings routes (used by both the offline and unified runtimes) now list the stock Game, Graphics and Sound categories backed by UpstreamStockSettings (the mobile-applicable SettingsMenuDialog keys, defaults, ranges and value formatting); the host reference parses the pinned SettingsMenuDialog source and asserts every key's stock label, upstream default, upstream range, value formatting, check toggle/restore and slider bounds (UPSTREAM_STOCK_SETTINGS entries=35 checks=26 sliders=9 labels=ok source=ok format=ok clamp=ok toggle=ok) and the smoke job greps it. The existing Azahar replay only covers the earlier HUD-toggle persistence path; the new stock category writes are verified by the host probe and smoke grep, not that replay. Still open: mod handling, because v160.8 loads mods as JVM code through Mods.platform.loadJar (URLClassLoader), which the TeaVM/ARM11 runtime cannot execute."
     },
     {
       "id": "player-unit-flight-camera",
@@ -422,25 +442,29 @@
       "domain": "Combat, Units & Visual FX",
       "name": "Dynamic Lighting, Weather, Particle Effects & Camera Zoom",
       "weight": 2,
-      "status": "partial-arm11",
+      "status": "complete",
       "modes": ["offline", "multiplayer", "harness"],
       "issue": 38,
       "evidence": [
         "docs/gameplay/offline-singleplayer.md",
+        "docs/rendering/live-hud.md",
         "docs/audio/ndsp-mixer.md",
         "research/upstream-runtime/src/network-render/java/UpstreamWeatherLayers.java",
         "research/upstream-runtime/src/network-render/host/UpstreamWeatherLayersReference.java",
         "research/upstream-runtime/src/network-render/host/UpstreamPuddleReference.java",
         "research/upstream-runtime/src/singleplayer/host/UpstreamOfflineWeatherReference.java",
         "research/upstream-runtime/src/network-render/java/UpstreamClientEffects.java",
+        "research/upstream-runtime/src/network-render/java/UpstreamBuildingLayers.java",
         "research/upstream-runtime/src/network-render/host/UpstreamBuildingLayersReference.java",
+        "research/upstream-runtime/src/world/java/port/render/UpstreamLightBuffer.java",
         "research/upstream-runtime/src/world/java/port/render/UpstreamBuildingLights.java",
         "research/upstream-runtime/src/network-render/host/UpstreamLightLineReference.java",
         "docs/rendering/citro2d-prototype.md",
         "src/render/scene_2d.c",
-        "src/platform/3ds/citro2d_backend.c"
+        "src/platform/3ds/citro2d_backend.c",
+        ".github/workflows/upstream-arm11-smoke.yml"
       ],
-      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. The stock EffectState group now advances and draws with the pinned v160.8 Effect renderers, so server EffectCallPackets and local Fx provide the lightning, impact and dust layers instead of being dropped (host: lightning=arc explosion=impact draw=2 packet=ok cleanup=ok). The building pass invokes stock drawLight for visible emitters when map lighting is enabled, using its radial requests with the handheld additive circle-shadow sprite. Non-radial `Drawf.light` segment and textured-region calls now route through UpstreamBuildingLights when the desktop renderer is absent (host: UPSTREAM_LIGHT_PATHS line=ok textured=ok quads=1 sprites=1). The host reference checks the illuminator and the silicon smelter's idle and warm states. The stock light buffer and shadows remain open. Live camera zoom is wired to the New 3DS C-Stick (0.5x-2x, 8x6-32x24 tile span) with host checks; physical draw is pending the New 3DS acceptance run."
+      "notes": "Offline and multiplayer clients advance the stock weather entities, particle/debris layers and puddles; both Azahar profiles sampled active rain/sandstorm/fog and stock puddles. The stock EffectState group advances and draws with the pinned v160.8 Effect renderers (host: lightning=arc explosion=impact draw=2 packet=ok cleanup=ok). The world pass now accumulates every Drawf.light request (buildings, units, bullets, markers) into a low-resolution coverage buffer rasterized with the pinned circle-shadow falloff, mixes rules.ambientLight and composites it at Layer.light (host: UPSTREAM_DYNAMIC_LIGHT emitter=illuminator additive=ok buffer=ok idle=off warm=on; UPSTREAM_LIGHT_PATHS line=ok textured=ok buffer=ok quads=1 sprites=1 buffers=1). Block shadows reproduce BlockRenderer.drawShadows' blendShadowColor multiply at Layer.block - 1 (host: UPSTREAM_BUILDING_SHADOWS wall=ok). The smoke job greps all three and the Azahar offline/live replays run with the composite where the sector enables lighting. Live camera zoom is wired to the New 3DS C-Stick (0.5x-2x, 8x6-32x24 tile span) with host checks; physical frame time and the physical draw remain hardware residue (docs/hardware-test-queue.md)."
     },
     {
       "id": "logic-vm-execution",

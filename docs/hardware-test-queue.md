@@ -50,6 +50,27 @@ merge:
 - `content-database-page`: open and exit the database on hardware.
 - `ndsp-mixer-ogg-streamer`: audible DSP output from the live mixer.
 - `live-ingame-sfx-music`: audible in-game DSP output.
+- `production-power-liquids`: physical New 3DS production/power/liquid run and
+  the Old 3DS XL AppMem footprint measurement (software evidence: host JVM,
+  TeaVM C `-O0`/`-O2`, Azahar New/Old).
+- `world-sprite-renderer`: physical New 3DS frame-time sample and visual check
+  of the textured world/unit pass (software evidence: host atlas/region tests,
+  Azahar `ATLAS loaded`, textured screenshots, parity).
+- `combat-waves-ai`: physical New 3DS sustained >= 24 FPS under high combat load
+  and the New 3DS ELF/heap footprint (software evidence: host JVM, TeaVM C
+  `-O0`/`-O2`, Azahar New/Old, offline session turret/wave/AI marker).
+- `world-blocks-logistics`: physical New 3DS >= 24 FPS and app-memory footprint
+  for the full drill/conveyor/router runtime (software evidence: host JVM,
+  TeaVM C `-O0`/`-O2`, Azahar New/Old, offline session logistics marker).
+- `lighting-effects-camera`: physical New 3DS frame-time sample with the light
+  buffer and block shadows active (software evidence: host light-buffer
+  coverage/shadow markers in the smoke job and the Azahar world replays).
+- `lighting-weather-fx-zoom`: physical frame time and draw check for the light
+  buffer, shadows and C-Stick camera zoom (software evidence: host markers plus
+  the merged ARM11 build and Azahar world replays).
+- `touch-build-palette`: physical touch accuracy and palette frame time with the
+  full catalog paged through (software evidence: host catalog paging/icon
+  markers, Azahar menu-icon replay and the live build queue).
 
 They remain `complete` in `docs/mechanics-parity.json`; a failing physical run
 reopens the corresponding entry.

@@ -75,13 +75,18 @@ clamp and span math are host-checked; the **physical draw is pending** the New
 
 ## Dynamic emitter lights
 
-Visible buildings with `emitLight` draw the stock `circle-shadow` region
-additively at their `lightRadius`/`lightColor`. `LightBlock` (for example the
-Illuminator) uses its configured color, brightness, efficiency and smoothing
-time. The host building reference asserts a real additive light sprite from the
-Illuminator. Core glow, per-block `drawLight` overrides (generators, reactors,
-crafters), the full stock light buffer and shadowing remain open; the
-**physical draw is pending** the New 3DS acceptance run.
+Visible buildings with `emitLight` request the stock light through the shared
+light buffer (see [offline-singleplayer](../gameplay/offline-singleplayer.md#world-lighting-and-block-shadows)):
+every `Drawf.light` request in the world pass is rasterized with the pinned
+`circle-shadow` falloff, mixed with `rules.ambientLight` and composited at
+`Layer.light`, so unlit areas darken like the stock shader. `LightBlock` (for
+example the Illuminator) uses its configured color, brightness, efficiency and
+smoothing time; block footprints get the stock `blendShadowColor` shadow at
+`Layer.block - 1`. Host markers: `UPSTREAM_DYNAMIC_LIGHT emitter=illuminator
+additive=ok buffer=ok idle=off warm=on`, `UPSTREAM_LIGHT_PATHS line=ok
+textured=ok buffer=ok quads=1 sprites=1 buffers=1`, `UPSTREAM_BUILDING_SHADOWS
+wall=ok`. The **physical draw and frame time** are pending the New 3DS
+acceptance run.
 
 ## Selected building bars
 
@@ -161,7 +166,8 @@ UPSTREAM_CORE_ITEM_FORMAT text=12k cases=9 ok
 UPSTREAM_CORE_ITEMS rows=2 ok
 UPSTREAM_MINIMAP_VIEW cases=5 ok
 UPSTREAM_SETTINGS_POSITION ok
-UPSTREAM_PAUSE_MENU cases=22 ok
+UPSTREAM_SAVE_PICKER pages=2 rows=ok select=ok empty=ok
+UPSTREAM_PAUSE_MENU cases=24 ok
 UPSTREAM_BOSS_BAR cases=4 ok
 UPSTREAM_CORE_ATTACK text="< Core is under attack! >" ok
 ```
@@ -193,7 +199,7 @@ phase-fabric=12,surge-alloy=9,spore-pod=25,pyratite=50
 The Original 3DS profile passed the same path with three seeded items
 (`items=3 drawn=3 columns=1`). The fixture is removed after the run.
 
-The pause overlay's selection, wrap, save, quit-confirmation and cancel
+The pause overlay's selection, wrap, save, load, quit-confirmation and cancel
 transitions are host-covered. Offline worlds with the stock `pauseDisabled`
 rule keep simulating while the menu is open. The overlay uses the localized
 Menu title in that case. The Ground Zero host probe checks both the normal
@@ -218,8 +224,11 @@ Verified on the emulator:
   Display Performance Metrics / Back; CTM runs toggled all four rows
   (`UPSTREAM_SETTINGS index=0..3`). The core-items and minimap rows changed the
   visible HUD, and the performance row added the `FPS` status row.
-- A on Load Game re-loads the campaign save: `load=true`, then a second
-  `UPSTREAM_SP_LOADED source=campaign`.
+- In a non-campaign world, Load opens the stock save list (newest first, seven
+  rows per page, `<`/`>` page rows); choosing a row emits `load=true` with
+  `picker=saves`, and B returns to the pause menu without leaving it.
+- A on Load Game in a campaign sector re-loads the campaign save: `load=true`,
+  then a second `UPSTREAM_SP_LOADED source=campaign`.
 - A on Save Game emits `UPSTREAM_PAUSE_MENU save=true`.
 - A on Quit, then A on the confirmation, emits `quit=true` and exits.
 - B or X cancels the menu; the HUD and minimap remain readable behind it.

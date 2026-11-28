@@ -36,7 +36,9 @@ import mindustry.world.blocks.distribution.MassDriver;
 import mindustry.world.blocks.distribution.Sorter;
 import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.defense.turrets.ItemTurret;
+import mindustry.world.blocks.logic.SwitchBlock;
 import mindustry.world.blocks.payloads.PayloadMassDriver;
+import mindustry.world.blocks.payloads.PayloadRouter;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.units.UnitFactory;
 
@@ -92,6 +94,7 @@ public final class UpstreamBuildControlsReference {
         if (!removal.breaking || removal.x != wall.x || removal.y != wall.y) {
             throw new AssertionError("Wrong upstream deconstruction plan");
         }
+        verifyStockPlans(controls, unit);
         controls.viewport(87, 20);
         if (controls.cursorX() != -1 || controls.cursorY() != -1) {
             throw new AssertionError("An offscreen cursor must clear");
@@ -108,10 +111,59 @@ public final class UpstreamBuildControlsReference {
         verifyStockDragSelection(unit);
         verifyCameraZoom(unit);
         verifyFactoryConfiguration(controls, unit);
+        verifyConfigTables(controls, unit);
         verifyStockLinks(unit);
         verifySchematicPlacement(unit);
         verifySchematicCapture(unit);
         System.out.println("UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26");
+    }
+
+    /**
+     * Drives the stock four-way rotation input and executes the queued plans
+     * against the pinned world, so placement, rotation and deconstruction are
+     * checked on all four rotations instead of a single fixed one.
+     */
+    private static void verifyStockPlans(UpstreamLiveBuildControls controls, Unit unit) {
+        int[] rotations = new int[4];
+        for (int i = 0; i < rotations.length; i++) {
+            controls.update(unit, 0, touch(40, 24));
+            controls.update(unit, 0, touch(200, 24));
+            controls.update(unit, 0, touch(232, 136));
+            var plan = unit.plans().removeFirst();
+            if (plan.block != Blocks.conveyor || plan.breaking) {
+                throw new AssertionError("Rotation pass queued the wrong plan");
+            }
+            rotations[i] = plan.rotation;
+        }
+        for (int i = 1; i < rotations.length; i++) {
+            if (rotations[i] != (rotations[i - 1] + 1) % 4) {
+                throw new AssertionError("Stock rotation cycle changed: " + rotations[0] + ","
+                    + rotations[1] + "," + rotations[2] + "," + rotations[3]);
+            }
+        }
+
+        var plan = new mindustry.entities.units.BuildPlan(85, 26, rotations[0], Blocks.conveyor);
+        if (!plan.placeable(unit.team)) throw new AssertionError("Stock build plan is not placeable");
+        var tile = plan.tile();
+        tile.setBlock(plan.block, unit.team, plan.rotation);
+        if (tile.block() != Blocks.conveyor || tile.build == null || tile.build.rotation != plan.rotation) {
+            throw new AssertionError("Stock build plan did not apply its block and rotation");
+        }
+
+        if (!mindustry.world.Build.validBreak(unit.team, 85, 26)) {
+            throw new AssertionError("Stock break plan is not valid");
+        }
+        var removal = new mindustry.entities.units.BuildPlan(85, 26);
+        if (!removal.breaking || removal.block != Blocks.conveyor) {
+            throw new AssertionError("Stock break plan lost its target");
+        }
+        tile.setBlock(Blocks.air);
+        if (tile.block() != Blocks.air || removal.tile().block() != Blocks.air) {
+            throw new AssertionError("Stock break plan did not clear the tile");
+        }
+
+        System.out.println("UPSTREAM_STOCK_BUILD_PLANS rotations=" + rotations[0] + ","
+            + rotations[1] + "," + rotations[2] + "," + rotations[3] + " place=ok break=ok");
     }
 
     private static void verifyStockCommandMenu(Unit player) {
@@ -381,6 +433,53 @@ public final class UpstreamBuildControlsReference {
         }
         System.out.println("UPSTREAM_INVENTORY_REFERENCE withdraw=" + capacity + " duo=" + expectedItems
             + " team=ok range=ok cooldown=ok");
+    }
+
+    /**
+     * Covers the two stock config shapes the touch menu previously ignored: the
+     * Boolean switch that toggles on tap and the payload-router content table.
+     */
+    private static void verifyConfigTables(UpstreamLiveBuildControls controls, Unit unit) {
+        var config = controls.buildingConfig();
+        var team = unit.team();
+
+        Vars.world.tile(88, 26).setBlock(Blocks.air);
+        Vars.world.tile(88, 26).setBlock(Blocks.switchBlock, team, 0);
+        var switchBuild = (SwitchBlock.SwitchBuild)Vars.world.tile(88, 26).build;
+        if (switchBuild == null) throw new AssertionError("The stock switch did not build");
+        var oldAudio = Core.audio;
+        Core.audio = new MockAudio();
+        try {
+            boolean before = switchBuild.enabled;
+            config.open(switchBuild);
+            if (config.isOpen() || switchBuild.enabled == before) {
+                throw new AssertionError("Stock switch tap did not toggle the block");
+            }
+            config.open(switchBuild);
+            if (switchBuild.enabled != before) {
+                throw new AssertionError("Stock switch tap did not toggle back");
+            }
+        } finally {
+            Core.audio = oldAudio;
+        }
+
+        Vars.world.tile(90, 26).setBlock(Blocks.air);
+        Vars.world.tile(90, 26).setBlock(Blocks.payloadRouter, team, 0);
+        var router = (PayloadRouter.PayloadRouterBuild)Vars.world.tile(90, 26).build;
+        if (router == null) throw new AssertionError("The stock payload router did not build");
+        config.open(router);
+        if (!config.isOpen() || config.unitPlans() || !config.blockPlans() || config.iconIds()[0] < 0) {
+            throw new AssertionError("Payload router must open its block content table");
+        }
+        controls.update(unit, 0, touch(160, UpstreamBuildMenu.ROW_TOP));
+        if (router.sorted == null) throw new AssertionError("Payload router did not take a sorted block");
+        var selected = router.sorted;
+        config.open(router);
+        int row = config.selectedRow();
+        if (row < 0) throw new AssertionError("Payload router lost its selected row");
+        controls.update(unit, 0, touch(160, UpstreamBuildMenu.ROW_TOP + row * UpstreamBuildMenu.ROW_HEIGHT));
+        if (router.sorted != null) throw new AssertionError("Payload router did not clear its sorted block");
+        System.out.println("UPSTREAM_CONFIG_TABLES switch=ok payload=blocks selected=" + selected.name);
     }
 
     private static void verifyFactoryConfiguration(UpstreamLiveBuildControls controls, Unit unit) throws Exception {
@@ -982,9 +1081,13 @@ public final class UpstreamBuildControlsReference {
     private static void verifyCatalog(UpstreamLiveBuildControls controls, Unit unit) {
         var upstream = new UpstreamPlacementCatalog();
         var menu = controls.catalog();
-        int verified = 0;
+        int verified = 0, categories = 0, pages = 1;
         for (var category : Category.all) {
             var blocks = upstream.getUnlockedByCategory(category);
+            if (!blocks.isEmpty()) {
+                categories++;
+                pages = Math.max(pages, (blocks.size + UpstreamBuildMenu.ROWS - 1) / UpstreamBuildMenu.ROWS);
+            }
             for (int index = 0; index < blocks.size; index++) {
                 var block = blocks.get(index);
                 menu.open(block);
@@ -995,6 +1098,20 @@ public final class UpstreamBuildControlsReference {
                     throw new AssertionError("Catalog selection lost upstream block " + block.name);
                 }
                 verified++;
+            }
+            if (!blocks.isEmpty()) {
+                int expectedPages = (blocks.size + UpstreamBuildMenu.ROWS - 1) / UpstreamBuildMenu.ROWS;
+                menu.open(blocks.first());
+                int visited = 1;
+                while (menu.nextPage()) {
+                    if (visited > 64) throw new AssertionError("Catalog paging did not terminate");
+                    menu.tap(276, UpstreamBuildMenu.FOOTER_TOP + 8);
+                    visited++;
+                }
+                if (visited != expectedPages) {
+                    throw new AssertionError("Category " + category.name() + " paged "
+                        + visited + " of " + expectedPages + " pages");
+                }
             }
         }
         var distribution = upstream.getUnlockedByCategory(Category.distribution);
@@ -1034,7 +1151,8 @@ public final class UpstreamBuildControlsReference {
             throw new AssertionError("Catalog choice did not reach the original construction queue");
         }
         System.out.println("UPSTREAM_CATALOG_REFERENCE entries=" + verified
-            + " routerPage=" + (routerIndex / UpstreamBuildMenu.ROWS + 1) + " routerRow=" + row);
+            + " routerPage=" + (routerIndex / UpstreamBuildMenu.ROWS + 1) + " routerRow=" + row
+            + " categories=" + categories + " pages=" + pages + " paging=ok");
     }
 
     private static int touch(int x, int y) {

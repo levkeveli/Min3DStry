@@ -16,6 +16,7 @@ import port.render.UpstreamFluidAtlas;
 public final class UpstreamLightLineReference implements UpstreamTerrainDrawProbe.TerrainTarget {
     private int quads;
     private int sprites;
+    private int buffers;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3) {
@@ -33,12 +34,22 @@ public final class UpstreamLightLineReference implements UpstreamTerrainDrawProb
         var region = Core.atlas.find("circle-shadow");
         if (!region.found()) throw new AssertionError("Missing stock light texture");
 
-        UpstreamBuildingLights.begin();
+        var rules = Vars.state.rules;
+        boolean lighting = rules.lighting;
+        float ambient = rules.ambientLight.a;
+        rules.lighting = true;
+        rules.ambientLight.a = 0.5f;
         try {
-            Drawf.light(600f, 200f, 620f, 208f, 4f, Color.red, 1f);
-            Drawf.light(610f, 210f, region, 0f, Color.green, 1f);
+            UpstreamBuildingLights.begin(viewport.left, viewport.bottom, viewport.width(), viewport.height());
+            try {
+                Drawf.light(600f, 200f, 620f, 208f, 4f, Color.red, 1f);
+                Drawf.light(610f, 210f, region, 0f, Color.green, 1f);
+            } finally {
+                UpstreamBuildingLights.end();
+            }
         } finally {
-            UpstreamBuildingLights.end();
+            rules.lighting = lighting;
+            rules.ambientLight.a = ambient;
         }
         if (target.quads == 0) {
             throw new AssertionError("Stock line light drew no geometry");
@@ -46,12 +57,22 @@ public final class UpstreamLightLineReference implements UpstreamTerrainDrawProb
         if (target.sprites == 0) {
             throw new AssertionError("Stock textured light drew no geometry");
         }
-        System.out.println("UPSTREAM_LIGHT_PATHS line=ok textured=ok quads=" + target.quads
-            + " sprites=" + target.sprites);
+        if (UpstreamBuildingLights.coverageAt(610f, 204f) <= 0f) {
+            throw new AssertionError("Stock light buffer captured no line/textured coverage");
+        }
+        if (target.buffers == 0) {
+            throw new AssertionError("Stock light buffer was not composited");
+        }
+        System.out.println("UPSTREAM_LIGHT_PATHS line=ok textured=ok buffer=ok quads=" + target.quads
+            + " sprites=" + target.sprites + " buffers=" + target.buffers);
     }
 
     @Override public void begin(int left, int bottom, int width, int height) {}
     @Override public void end() {}
+    @Override public void drawLogicDisplay(port.render.UpstreamLogicFramebuffer.RasterTexture texture,
+                                           float[] vertices, int offset, arc.graphics.Blending blending) {
+        buffers++;
+    }
     @Override public void drawSolidQuad(float[] vertices, int offset, arc.graphics.Blending blending) {
         quads++;
     }

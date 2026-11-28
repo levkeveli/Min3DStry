@@ -26,6 +26,36 @@ full upstream catalog/layout parity remains open.
 - The ARM11 client drew the constructed sprites after each stock-server
   acknowledgement.
 
+## Config tables
+
+The touch config menu now covers every stock table shape the catalog exposes:
+item selectors (Sorter, Unloader, Routers), link blocks (Power Node, Item
+Bridge, Mass Driver, Payload Mass Driver), unit factory plans, the Boolean
+switch toggle and the payload-router block content table.
+
+- **Switch** toggles on tap like the stock block, instead of opening an empty
+  table.
+- **Payload Router** opens the stock block content list and clears it on a
+  second tap of the selected row; the config menu uses the block icon catalog.
+
+Host markers from `runBuildControlsJvm` against a captured stock WorldStream:
+
+```
+UPSTREAM_CONFIG_TABLES switch=ok payload=blocks selected=graphite-press
+UPSTREAM_CONFIG_TOGGLE x=88 y=26 before=true after=false
+```
+
+The unified-build smoke job also greps the catalog audit that classifies every
+configurable catalog block by its stock config shape:
+
+```
+UPSTREAM_CONFIG_COVERAGE catalog=139 icons=ok item=4 content=1 toggle=1 factory=3 link=8 command=4 text=1 color=4 action=2 unclassified=0
+```
+
+`command` covers the reconstructor command table (#449) and `text`/`color`/
+`action` are the stock non-table dialogs (message, illuminator colour, launch
+pads); the logic processor editor remains #688.
+
 ## Stock schematics
 
 Copy Mindustry v160.8 `.msch` files into
@@ -366,6 +396,41 @@ python3 tools/verify_upstream_factory_plans.py \
 
 ## Limits
 
-- The palette is a bounded prototype, not the final upstream layout; not every
-  catalog page or configurable block has an automated replay.
-- Physical touch hardware and the full catalog remain open with #27/#43.
+- The 240 px bottom screen uses the port's six-row icon+name layout instead of
+  the desktop grid; categories, stock unlock order, icons and paging match the
+  pinned `PlacementFragment` data.
+- Physical touch hardware and frame time remain open with #27/#43.
+
+## Host verification
+
+`UpstreamBuildControlsReference` drives the touch adapter against a captured
+stock `WorldStream` and checks the plans the stock server would receive:
+
+```bash
+./gradlew -p research/upstream-runtime -Pprobe=network-live runBuildControlsJvm \
+  --args=/path/to/glacier-world-stream.bin
+UPSTREAM_TOUCH_REFERENCE conveyor=85,26,1 wall=86,26 break=86,26
+UPSTREAM_STOCK_BUILD_PLANS rotations=1,2,3,0 place=ok break=ok
+```
+
+The first marker is the conveyor at `85,26` with rotation `1`, the copper wall
+at `86,26` and its breaking plan. The second cycles the stock rotate input four
+times (rotation advances `1,2,3,0`) and then validates the stock build plan
+through `Build.validPlace`/`Tile.setBlock` (the block and rotation are applied)
+and the breaking plan through `Build.validBreak`, which clears the tile.
+
+## Catalog paging
+
+The building-layer reference walks the stock catalog adapter over every
+unlocked category and page and asserts each page is reachable and terminates at
+the stock entry count:
+
+```
+UPSTREAM_PALETTE_CATALOG categories=10 entries=139 pages=3 paging=ok
+```
+
+The unified-build smoke job greps this next to the live menu-icon replay
+(`UPSTREAM_MENU_ICONS type=block drawn=6`), so the palette pages and their stock
+icons are covered without a handheld run. Physical touch/frame-time residue is
+tracked in [hardware-test-queue.md](../hardware-test-queue.md).
+

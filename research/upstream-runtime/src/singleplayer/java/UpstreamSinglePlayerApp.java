@@ -673,26 +673,16 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private int chooseTitlePagedRow(String title, int count, int selected, java.util.function.IntFunction<String> option) {
-        final int pageSize = 7;
         while (true) {
-            int first = selected / pageSize * pageSize;
-            int end = Math.min(first + pageSize, count);
-            var options = new String[end - first + (first > 0 ? 1 : 0) + (end < count ? 1 : 0)];
-            int offset = first > 0 ? 1 : 0;
-            if (offset == 1) options[0] = "<";
-            for (int index = first; index < end; index++) {
-                options[offset + index - first] = option.apply(index);
-            }
-            if (end < count) options[options.length - 1] = ">";
-            int row = chooseTitleRow(title, offset + selected - first, options);
+            var page = UpstreamSavePicker.page(count, selected);
+            var labels = new java.util.ArrayList<String>(page.end() - page.first());
+            for (int index = page.first(); index < page.end(); index++) labels.add(option.apply(index));
+            int row = chooseTitleRow(title, UpstreamSavePicker.highlight(page, selected),
+                UpstreamSavePicker.rows(labels, page));
             if (row < 0) return row;
-            if (row < offset) {
-                selected = first - 1;
-            } else if (first + row - offset >= end) {
-                selected = end;
-            } else {
-                return first + row - offset;
-            }
+            int index = UpstreamSavePicker.choose(page, row);
+            if (index >= 0) return index;
+            selected = UpstreamSavePicker.next(page, row);
         }
     }
 
@@ -726,8 +716,10 @@ public final class UpstreamSinglePlayerApp {
             if (row < 0) return row == -1;
             settingsMenu.move(row - settingsMenu.selected());
             if (settingsMenu.backSelected()) return true;
-            if (settingsMenu.soundSelected()) {
-                if (!chooseSoundSettings(settings)) return false;
+            String category = settingsMenu.categorySelected();
+            if (category != null) {
+                if (!chooseStockSettings(settings, category)) return false;
+                openHudSettings(settings);
             } else {
                 toggleHudSetting(settings);
                 settings.manualSave();
@@ -1423,11 +1415,15 @@ public final class UpstreamSinglePlayerApp {
                     if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
                         if (settingsMenu.backSelected()) {
                             settingsOpen = false;
-                        } else if (settingsMenu.soundSelected()) {
-                            if (!chooseSoundSettings(Core.settings)) return false;
-                            previousTime = System.nanoTime();
                         } else {
-                            toggleHudSetting(Core.settings);
+                            String category = settingsMenu.categorySelected();
+                            if (category != null) {
+                                if (!chooseStockSettings(Core.settings, category)) return false;
+                                openHudSettings(Core.settings);
+                                previousTime = System.nanoTime();
+                            } else {
+                                toggleHudSetting(Core.settings);
+                            }
                         }
                     } else if ((input & (UpstreamSinglePlayerInput.B_PRESSED
                             | UpstreamSinglePlayerInput.X_PRESSED)) != 0) {
@@ -1447,6 +1443,30 @@ public final class UpstreamSinglePlayerApp {
                         if (action == UpstreamPauseMenu.Action.RESUME) {
                             closePauseMenu();
                         } else if (action == UpstreamPauseMenu.Action.LOAD) {
+                            Fi target = saveFile;
+                            boolean picked = false;
+                            int saveCount = 0;
+                            if (campaignSlot == null) {
+                                // Stock LoadDialog: newest save first, paged, load the chosen slot.
+                                var saves = UpstreamCustomGameSaves.discoverForTitle(Vars.saveDirectory);
+                                saveCount = saves.size();
+                                if (saves.isEmpty()) {
+                                    if (chooseTitleRow(Core.bundle.get("save.none"), "back") == -2) return false;
+                                    previousTime = System.nanoTime();
+                                    accumulator = 0L;
+                                    continue;
+                                }
+                                int chosen = chooseTitlePagedRow(Core.bundle.get("loadgame"), saves.size(), 0,
+                                    index -> saves.get(index).title());
+                                if (chosen == -2) return false;
+                                if (chosen < 0) {
+                                    previousTime = System.nanoTime();
+                                    accumulator = 0L;
+                                    continue;
+                                }
+                                target = saves.get(chosen).file();
+                                picked = true;
+                            }
                             closePauseMenu();
                             var loadSector = Vars.state.rules.sector;
                             // Drop UI and player references before decoding the replacement world.
@@ -1456,14 +1476,17 @@ public final class UpstreamSinglePlayerApp {
                             var slotToReload = campaignSlot;
                             // A failed decode must not let the exit handler overwrite this save.
                             campaignSlot = null;
-                            session.start(sourceMap, saveFile, slotToReload == null ? null : "campaign", loadSector);
+                            session.start(sourceMap, target,
+                                slotToReload == null ? (picked ? "load" : null) : "campaign", loadSector);
                             campaignSlot = slotToReload;
                             weatherLayers.reset();
                             reportWeather();
                             uploadMinimap();
                             previousTime = System.nanoTime();
                             accumulator = 0L;
-                            System.out.println("UPSTREAM_PAUSE_MENU load=true");
+                            System.out.println("UPSTREAM_PAUSE_MENU load=true picker="
+                                + (picked ? "saves" : "current") + " saves=" + saveCount
+                                + " file=" + target.name());
                             continue;
                         } else if (action == UpstreamPauseMenu.Action.RESEARCH) {
                             closePauseMenu();
@@ -1700,6 +1723,12 @@ public final class UpstreamSinglePlayerApp {
     }
 
     private void drawEntities() {
+        // Close a frame abandoned by a throw so the next frame starts clean.
+        port.render.UpstreamBuildingLights.end();
+        // Stock light accumulation spans the whole world pass, so unit and
+        // bullet lights reach the same low-resolution buffer as buildings.
+        port.render.UpstreamBuildingLights.begin(viewport.left, viewport.bottom,
+            viewport.width(), viewport.height());
         buildingLayers.render(viewport, Vars.player.team(), UpstreamSinglePlayerApp::supportsBuildingDraw);
         drawConstructBuilds();
         Draw.sort(true);
@@ -1734,6 +1763,7 @@ public final class UpstreamSinglePlayerApp {
         orders.draw(viewport);
         var schematics = buildingControls.schematics();
         schematics.draw(viewport);
+        port.render.UpstreamBuildingLights.end();
         drawCoreItems();
         drawPositionReadout();
         float hudY = drawStatusHud();
@@ -1770,7 +1800,9 @@ public final class UpstreamSinglePlayerApp {
         } else if (config.isOpen()) {
             drawMenu(config.labels(), config.iconIds(), config.selectedRow(),
                 config.previousPage(), config.nextPage(),
-                config.unitPlans() ? UpstreamTerrainRenderProbe.UNIT_CATALOG : UpstreamTerrainRenderProbe.ITEM_CATALOG);
+                config.unitPlans() ? UpstreamTerrainRenderProbe.UNIT_CATALOG
+                    : config.blockPlans() ? UpstreamTerrainRenderProbe.BLOCK_CATALOG
+                    : UpstreamTerrainRenderProbe.ITEM_CATALOG);
         } else if (inventory.isOpen()) {
             drawMenu(inventory.labels(), inventory.iconIds(), -1, inventory.previousPage(), inventory.nextPage(),
                 UpstreamTerrainRenderProbe.ITEM_CATALOG);
@@ -1982,68 +2014,81 @@ public final class UpstreamSinglePlayerApp {
             hudSettingRow("setting.showweather.name", settingsMenu.weather()),
             hudSettingRow("setting.showperformance.name", settingsMenu.performance()),
             hudSettingRow("setting.position.name", settingsMenu.position()),
+            Core.bundle.get("settings.game"),
+            Core.bundle.get("settings.graphics"),
             Core.bundle.get("settings.sound"),
             Core.bundle.get("back")
         };
     }
 
-    private boolean chooseSoundSettings(Settings settings) {
-        String[] keys = {"musicvol", "sfxvol", "ambientvol"};
-        int[] volume = new int[keys.length];
-        for (int i = 0; i < keys.length; i++) volume[i] = Mathf.clamp(settings.getInt(keys[i], 100), 0, 100);
-        byte[] help = ("Left   -\0Right   +\0B   " + Core.bundle.get("back") + "\0")
-            .getBytes(StandardCharsets.UTF_8);
+    /**
+     * Stock preference list for one category, driven by UpstreamStockSettings.
+     * Up/down selects, A toggles a check, left/right steps a slider, B returns.
+     */
+    private boolean chooseStockSettings(Settings settings, String category) {
+        var list = UpstreamStockSettings.entries(category);
+        if (list.isEmpty()) return true;
+        final int pageSize = 6;
         int selected = 0, lastY = 0, lastDirection = 0;
         long repeatAt = 0;
         boolean changed = false;
+        byte[] help = ("Left  -\0Right  +\0A  " + Core.bundle.get("ok") + "\0B  "
+            + Core.bundle.get("back") + "\0").getBytes(StandardCharsets.UTF_8);
         MenuRows rows = null;
         UpstreamSinglePlayerInput.poll();
         while (true) {
             long started = System.nanoTime();
             int input = UpstreamSinglePlayerInput.poll();
-            int touch = UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), 3);
-            if (input < 0 || touch == 2 || (input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+            if (input < 0 || (input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
                 if (changed) settings.manualSave();
                 return input >= 0;
             }
             int y = (byte)(input >> 8);
             if (y > 60 && lastY <= 20) {
-                selected = Math.floorMod(selected - 1, keys.length);
+                selected = Math.floorMod(selected - 1, list.size);
                 rows = null;
             }
             if (y < -60 && lastY >= -20) {
-                selected = (selected + 1) % keys.length;
+                selected = (selected + 1) % list.size;
                 rows = null;
             }
             lastY = y;
+            var entry = list.get(selected);
+            if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0
+                    && entry.kind() == UpstreamStockSettings.Kind.CHECK) {
+                UpstreamStockSettings.toggle(settings, entry);
+                changed = true;
+                rows = null;
+            }
             int x = (byte)input;
             int direction = x < -60 ? -1 : x > 60 ? 1 : 0;
-            int delta = touch == 0 ? -1 : touch == 1 ? 1 : 0;
+            int delta = 0;
             if (direction != lastDirection) {
                 repeatAt = started + 350_000_000L;
-                if (delta == 0) delta = direction;
-            } else if (direction != 0 && started >= repeatAt && delta == 0) {
+                delta = direction;
+            } else if (direction != 0 && started >= repeatAt) {
                 delta = direction;
                 repeatAt = started + 65_000_000L;
             }
             lastDirection = direction;
-            int next = Mathf.clamp(volume[selected] + delta, 0, 100);
-            if (next != volume[selected]) {
-                volume[selected] = next;
-                settings.put(keys[selected], next);
+            if (delta != 0 && entry.kind() == UpstreamStockSettings.Kind.SLIDER) {
+                UpstreamStockSettings.adjust(settings, entry, delta);
                 changed = true;
                 rows = null;
             }
             if (rows == null) {
-                var captions = new String[keys.length + 1];
-                captions[0] = Core.bundle.get("settings.sound");
-                for (int i = 0; i < keys.length; i++) {
-                    captions[i + 1] = (i == selected ? "> " : "  ") + Core.bundle.get("setting." + keys[i] + ".name")
-                        + "  " + volume[i] + "%";
+                int page = selected / pageSize;
+                int start = page * pageSize, end = Math.min(start + pageSize, list.size);
+                var captions = new String[1 + (end - start) + 1];
+                captions[0] = UpstreamStockSettings.categoryName(category);
+                for (int i = start; i < end; i++) {
+                    captions[1 + i - start] = (i == selected ? "> " : "  ")
+                        + UpstreamStockSettings.row(settings, list.get(i));
                 }
+                captions[captions.length - 1] = Core.bundle.get("back");
                 rows = encodeMenuRows(captions);
             }
-            drawMenuRows(rows, help, 3);
+            drawMenuRows(rows, help, 4);
             while (System.nanoTime() < started + FRAME_NS) Thread.yield();
         }
     }
