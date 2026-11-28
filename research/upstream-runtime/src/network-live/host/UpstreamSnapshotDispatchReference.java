@@ -1,6 +1,8 @@
+import arc.Core;
 import arc.files.Fi;
 import arc.math.geom.Point2;
 import arc.math.geom.Vec2;
+import arc.mock.MockAudio;
 import arc.util.io.Reads;
 import arc.util.io.Writes;
 import java.io.ByteArrayInputStream;
@@ -32,6 +34,10 @@ import mindustry.gen.CompleteObjectiveCallPacket;
 import mindustry.gen.CreateMarkerCallPacket;
 import mindustry.gen.EntitySnapshotCallPacket;
 import mindustry.gen.Groups;
+import mindustry.gen.PayloadDroppedCallPacket;
+import mindustry.gen.Payloadc;
+import mindustry.gen.PickedBuildPayloadCallPacket;
+import mindustry.gen.PickedUnitPayloadCallPacket;
 import mindustry.gen.Player;
 import mindustry.gen.RemoveMarkerCallPacket;
 import mindustry.gen.SetObjectivesCallPacket;
@@ -41,6 +47,7 @@ import mindustry.gen.StateSnapshotCallPacket;
 import mindustry.gen.TileConfigCallPacket;
 import mindustry.gen.Unit;
 import mindustry.gen.UnitControlCallPacket;
+import mindustry.gen.UnitEnteredPayloadCallPacket;
 import mindustry.gen.UpdateMarkerCallPacket;
 import mindustry.gen.UpdateMarkerTextCallPacket;
 import mindustry.gen.UpdateMarkerTextureCallPacket;
@@ -53,6 +60,7 @@ import mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.ControlBlock;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
+import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.modules.ItemModule;
 
 public final class UpstreamSnapshotDispatchReference {
@@ -60,6 +68,7 @@ public final class UpstreamSnapshotDispatchReference {
         if (args.length != 1) throw new IllegalArgumentException("Expected a captured v160.8 WorldStream");
         var fixture = new Fi(args[0]);
         var app = UpstreamWorldLoadProbe.initialize(fixture.parent());
+        Core.audio = new MockAudio();
         Vars.mods = new Mods();
         Vars.universe = new Universe();
         Vars.indexer = new BlockIndexer();
@@ -127,6 +136,7 @@ public final class UpstreamSnapshotDispatchReference {
         System.out.println("UPSTREAM_SNAPSHOT_REFERENCE wave=" + state.wave
             + " seconds=42 copper=947 dagger=" + dagger.id);
         verifyPayloadHandoff();
+        verifyPayloadEvents();
         verifyObjectivePackets();
         verifyMarkerPackets();
         verifyPossessionPackets(decodedMono);
@@ -363,6 +373,108 @@ public final class UpstreamSnapshotDispatchReference {
         var received = UpstreamLiveNetworkProbe.markerPacket(Net.getPacketClassId(sent.getClass()) & 0xff);
         if (received == null || received.getClass() != sent.getClass()) {
             throw new AssertionError("Missing stock live marker packet " + sent.getClass().getSimpleName());
+        }
+        applyPacket(sent, received);
+    }
+
+    private static void verifyPayloadEvents() throws Exception {
+        var team = Vars.player.team();
+        var carrier = UnitTypes.mega.create(team);
+        carrier.set(84 * Vars.tilesize, 25 * Vars.tilesize);
+        carrier.add();
+        var cargo = (Payloadc) carrier;
+        var dagger = UnitTypes.dagger.create(team);
+        dagger.set(carrier);
+        dagger.add();
+        var pickup = new PickedUnitPayloadCallPacket();
+        pickup.unit = carrier;
+        pickup.target = dagger;
+        applyPayloadEvent(pickup);
+        if (dagger.isAdded() || cargo.payloads().size != 1
+                || !(cargo.payloads().first() instanceof UnitPayload unit) || unit.unit != dagger) {
+            throw new AssertionError("Stock unit pickup should move the exact entity into carrier cargo");
+        }
+
+        var intake = Vars.world.tile(85, 25);
+        intake.setBlock(Blocks.payloadConveyor, team, 0);
+        var conveyor = (PayloadConveyorBuild) intake.build;
+        var drop = new PayloadDroppedCallPacket();
+        drop.unit = carrier;
+        drop.x = conveyor.x;
+        drop.y = conveyor.y;
+        float x = carrier.x, y = carrier.y;
+        applyPayloadEvent(drop);
+        if (conveyor.item != unit || !cargo.payloads().isEmpty() || carrier.x != x || carrier.y != y) {
+            throw new AssertionError("Stock payload drop should preserve the carrier position and feed the intake");
+        }
+        var pickBuild = new PickedBuildPayloadCallPacket();
+        pickBuild.unit = carrier;
+        pickBuild.build = conveyor;
+        pickBuild.onGround = false;
+        applyPayloadEvent(pickBuild);
+        if (conveyor.item != null || cargo.payloads().size != 1 || cargo.payloads().first() != unit) {
+            throw new AssertionError("Stock building pickup should return its cargo");
+        }
+
+        var dropTile = Vars.world.tile(88, 25);
+        dropTile.setBlock(Blocks.air);
+        dropTile.setFloor(Blocks.stone.asFloor());
+        drop.x = dropTile.worldx();
+        drop.y = dropTile.worldy();
+        applyPayloadEvent(drop);
+        if (!cargo.payloads().isEmpty() || dagger.isAdded()) {
+            throw new AssertionError("The stock client should wait for the unloaded unit snapshot");
+        }
+        var unloaded = UnitTypes.dagger.create(team);
+        unloaded.id(22344);
+        unloaded.set(drop.x, drop.y);
+        var bytes = new ByteArrayOutputStream();
+        var out = new DataOutputStream(bytes);
+        out.writeInt(unloaded.id);
+        out.writeByte(unloaded.classId());
+        unloaded.writeSync(new Writes(out));
+        var snapshot = new EntitySnapshotCallPacket();
+        snapshot.amount = 1;
+        snapshot.data = bytes.toByteArray();
+        applyPacket(snapshot, new EntitySnapshotCallPacket());
+        var replicated = (Unit) Groups.sync.getByID(unloaded.id);
+        if (replicated == null || replicated.type != UnitTypes.dagger || replicated.x != drop.x) {
+            throw new AssertionError("The authoritative unloaded unit should appear with the server ID");
+        }
+
+        var enter = new UnitEnteredPayloadCallPacket();
+        enter.unit = replicated;
+        enter.build = conveyor;
+        applyPayloadEvent(enter);
+        if (replicated.isAdded() || !(conveyor.item instanceof UnitPayload received) || received.unit != replicated) {
+            throw new AssertionError("Stock unit entry should move the entity into the original conveyor");
+        }
+
+        var blockTile = Vars.world.tile(84, 23);
+        blockTile.setFloor(Blocks.stone.asFloor());
+        blockTile.setBlock(Blocks.copperWall, team, 0);
+        var wall = blockTile.build;
+        wall.health -= 5;
+        pickBuild.build = wall;
+        pickBuild.onGround = true;
+        applyPayloadEvent(pickBuild);
+        if (blockTile.block() != Blocks.air || !(cargo.payloads().peek() instanceof BuildPayload block)
+                || block.build != wall) {
+            throw new AssertionError("Stock pickup should store the whole building and clear its old tile");
+        }
+        drop.x = blockTile.worldx();
+        drop.y = blockTile.worldy();
+        applyPayloadEvent(drop);
+        if (!cargo.payloads().isEmpty() || blockTile.build != wall || wall.health >= wall.maxHealth) {
+            throw new AssertionError("Stock drop should restore the building and preserve its health");
+        }
+        System.out.println("UPSTREAM_PAYLOAD_EVENTS unitPickup=ok blockPickup=ok cargo=ok drop=ok enter=ok");
+    }
+
+    private static void applyPayloadEvent(Packet sent) {
+        var received = UpstreamLiveNetworkProbe.payloadPacket(Net.getPacketClassId(sent.getClass()) & 0xff);
+        if (received == null || received.getClass() != sent.getClass()) {
+            throw new AssertionError("Missing stock payload packet " + sent.getClass().getSimpleName());
         }
         applyPacket(sent, received);
     }

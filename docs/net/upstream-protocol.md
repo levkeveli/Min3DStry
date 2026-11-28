@@ -149,3 +149,17 @@ replay passed on the New 3DS profile.
 ## License Audit
 
 All C wire/framing code in `src/net/mindustry_net.c` and `src/platform/3ds/net_3ds.c` was written cleanly for Min3DStry from the wire specification documented in pinned upstream Mindustry (`GPLv3`) and Arc (`Apache-2.0` / `BSD-style` ArcNet heritage), with zero proprietary Nintendo code and zero undistributable third-party binaries.
+
+### Payload pickup and drop
+
+The graphical client handles the original v160.8 unit pickup, building
+pickup, payload drop and unit-entry packets. A stock drop can restore the
+whole building, including its health, or feed a same-team payload receiver.
+A unit released onto the ground appears with the server-assigned ID when
+its entity snapshot arrives.
+
+The unified JVM snapshot replay loads a stock Glacier world and round-trips
+the generated packet bytes. It checks a Mega carrying a Dagger and a damaged
+Copper Wall, delivery to a Payload Conveyor, cargo retrieval, ground release
+and a unit entering the conveyor. Handheld input and live session replay
+remain to be verified.
