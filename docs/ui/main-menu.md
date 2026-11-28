@@ -18,6 +18,27 @@ save. The [multiplayer replay](https://github.com/levkeveli/Min3DStry/actions/ru
 retained the stock German locale and joined and left an unmodified v160.8
 Java server from the title's Join Game route.
 
+## Stock settings
+
+Settings (title or pause) lists the five handheld HUD toggles, then the stock
+Game, Graphics and Sound categories. Each category is driven by
+`UpstreamStockSettings`, the mobile-applicable subset of
+`SettingsMenuDialog.addSettings()` at the pinned revision: checks toggle with A,
+sliders step with Left/Right using the stock ranges and formatting (`%`, `x`,
+seconds), and every change is written through `arc.Settings` and saved. The
+category list, keys and defaults are asserted on the host and the marker is
+grep-enforced in the smoke job:
+
+```
+UPSTREAM_STOCK_SETTINGS entries=35 checks=26 sliders=9 labels=ok clamp=ok toggle=ok
+```
+
+The [offline replay](https://github.com/levkeveli/Min3DStry/actions/runs/45727286685/artifacts/15076074292)
+also reopens a saved HUD setting on Azahar, covering the handheld persistence
+path. Mod handling is not part of this shell: v160.8 loads mods as JVM code via
+`Mods.platform.loadJar` (a `URLClassLoader`), which the TeaVM/ARM11 runtime
+cannot execute.
+
 ## Unified ARM11 Core Database
 
 Open the Core Database from the offline pause menu with Y or from the unified

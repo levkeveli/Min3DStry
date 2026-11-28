@@ -726,8 +726,10 @@ public final class UpstreamSinglePlayerApp {
             if (row < 0) return row == -1;
             settingsMenu.move(row - settingsMenu.selected());
             if (settingsMenu.backSelected()) return true;
-            if (settingsMenu.soundSelected()) {
-                if (!chooseSoundSettings(settings)) return false;
+            String category = settingsMenu.categorySelected();
+            if (category != null) {
+                if (!chooseStockSettings(settings, category)) return false;
+                openHudSettings(settings);
             } else {
                 toggleHudSetting(settings);
                 settings.manualSave();
@@ -1329,11 +1331,15 @@ public final class UpstreamSinglePlayerApp {
                     if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0) {
                         if (settingsMenu.backSelected()) {
                             settingsOpen = false;
-                        } else if (settingsMenu.soundSelected()) {
-                            if (!chooseSoundSettings(Core.settings)) return false;
-                            previousTime = System.nanoTime();
                         } else {
-                            toggleHudSetting(Core.settings);
+                            String category = settingsMenu.categorySelected();
+                            if (category != null) {
+                                if (!chooseStockSettings(Core.settings, category)) return false;
+                                openHudSettings(Core.settings);
+                                previousTime = System.nanoTime();
+                            } else {
+                                toggleHudSetting(Core.settings);
+                            }
                         }
                     } else if ((input & (UpstreamSinglePlayerInput.B_PRESSED
                             | UpstreamSinglePlayerInput.X_PRESSED)) != 0) {
@@ -1897,9 +1903,83 @@ public final class UpstreamSinglePlayerApp {
             hudSettingRow("setting.showweather.name", settingsMenu.weather()),
             hudSettingRow("setting.showperformance.name", settingsMenu.performance()),
             hudSettingRow("setting.position.name", settingsMenu.position()),
+            Core.bundle.get("settings.game"),
+            Core.bundle.get("settings.graphics"),
             Core.bundle.get("settings.sound"),
             Core.bundle.get("back")
         };
+    }
+
+    /**
+     * Stock preference list for one category, driven by UpstreamStockSettings.
+     * Up/down selects, A toggles a check, left/right steps a slider, B returns.
+     */
+    private boolean chooseStockSettings(Settings settings, String category) {
+        var list = UpstreamStockSettings.entries(category);
+        if (list.isEmpty()) return true;
+        final int pageSize = 6;
+        int selected = 0, lastY = 0, lastDirection = 0;
+        long repeatAt = 0;
+        boolean changed = false;
+        byte[] help = ("Left  -\0Right  +\0A  " + Core.bundle.get("ok") + "\0B  "
+            + Core.bundle.get("back") + "\0").getBytes(StandardCharsets.UTF_8);
+        MenuRows rows = null;
+        UpstreamSinglePlayerInput.poll();
+        while (true) {
+            long started = System.nanoTime();
+            int input = UpstreamSinglePlayerInput.poll();
+            if (input < 0 || (input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
+                if (changed) settings.manualSave();
+                return input >= 0;
+            }
+            int y = (byte)(input >> 8);
+            if (y > 60 && lastY <= 20) {
+                selected = Math.floorMod(selected - 1, list.size);
+                rows = null;
+            }
+            if (y < -60 && lastY >= -20) {
+                selected = (selected + 1) % list.size;
+                rows = null;
+            }
+            lastY = y;
+            var entry = list.get(selected);
+            if ((input & UpstreamSinglePlayerInput.A_PRESSED) != 0
+                    && entry.kind() == UpstreamStockSettings.Kind.CHECK) {
+                UpstreamStockSettings.toggle(settings, entry);
+                changed = true;
+                rows = null;
+            }
+            int x = (byte)input;
+            int direction = x < -60 ? -1 : x > 60 ? 1 : 0;
+            int delta = 0;
+            if (direction != lastDirection) {
+                repeatAt = started + 350_000_000L;
+                delta = direction;
+            } else if (direction != 0 && started >= repeatAt) {
+                delta = direction;
+                repeatAt = started + 65_000_000L;
+            }
+            lastDirection = direction;
+            if (delta != 0 && entry.kind() == UpstreamStockSettings.Kind.SLIDER) {
+                UpstreamStockSettings.adjust(settings, entry, delta);
+                changed = true;
+                rows = null;
+            }
+            if (rows == null) {
+                int page = selected / pageSize;
+                int start = page * pageSize, end = Math.min(start + pageSize, list.size);
+                var captions = new String[1 + (end - start) + 1];
+                captions[0] = UpstreamStockSettings.categoryName(category);
+                for (int i = start; i < end; i++) {
+                    captions[1 + i - start] = (i == selected ? "> " : "  ")
+                        + UpstreamStockSettings.row(settings, list.get(i));
+                }
+                captions[captions.length - 1] = Core.bundle.get("back");
+                rows = encodeMenuRows(captions);
+            }
+            drawMenuRows(rows, help, 4);
+            while (System.nanoTime() < started + FRAME_NS) Thread.yield();
+        }
     }
 
     private boolean chooseSoundSettings(Settings settings) {

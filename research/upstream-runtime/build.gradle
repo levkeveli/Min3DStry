@@ -44,6 +44,7 @@ def entryPoints = [
     map: 'mindustry.maps.UpstreamMapProbe',
     'map-sd': 'mindustry.maps.UpstreamSdMapProbe',
     content: 'UpstreamContentBaseline',
+    'stock-settings': 'UpstreamStockSettingsReference',
     resource: 'port.UpstreamResourceProbe',
     executor: 'port.concurrent.UpstreamExecutorProbe',
     'content-init': 'UpstreamContentInitializationProbe',
@@ -157,7 +158,7 @@ def usesCampaignJsonCompat = usesCampaignSectorInfo || usesCampaignSlotDiscovery
 def usesWorldSources = probe in ['world', 'world-save', 'world-roundtrip', 'world-stream',
                                  'terrain-draw', 'save-decode', 'save-rows'] || usesCampaignSector || usesCampaignSlotMeta || usesCampaignLaunch || usesCampaignCapture || usesCampaignSavesLoad || usesCampaignSlotDiscovery || usesLiveNetwork || usesTerrainRenderer || usesSimulation || usesSinglePlayer
 def initializesContent = probe == 'content-init' || usesWorldSources || usesCampaignContent || usesCampaignResearch || usesCampaignSectorInfo || usesCampaignPlanet || usesCampaignSectorState || usesCampaignLaunch || usesCampaignCapture || usesCampaignSaves
-def usesContentSources = probe == 'content' || initializesContent || usesStatusHud
+def usesContentSources = probe in ['content', 'stock-settings'] || initializesContent || usesStatusHud
 def usesExecutor = usesContentSources || probe == 'executor' || usesCampaignSettings
 def usesArcSources = usesContentSources || probe == 'resource' || usesCampaignSettings
 def usesWorldStream = probe == 'world-stream' || usesLiveNetwork

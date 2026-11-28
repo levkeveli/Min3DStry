@@ -1398,6 +1398,16 @@ jobs:
             "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=unified runStockLocalesJvm \
             --args="$PWD/build/smoke-assets/bundles/bundle" | tee "$RUNNER_TEMP/locales.log"
           grep -F 'parsed=ok keys=ok fallback=ok en=Conveyor ja=ok' "$RUNNER_TEMP/locales.log"
+      - name: Verify the stock settings preferences on the JVM
+        run: |
+          set -o pipefail
+          bash "$RUNNER_TEMP/Mindustry/gradlew" -p research/upstream-runtime \
+            --no-daemon --console=plain \
+            "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
+            "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
+            "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=stock-settings runProbeJvm \
+            --args="$PWD/build/smoke-assets/bundles/bundle" | tee "$RUNNER_TEMP/stock-settings.log"
+          grep -Fx 'UPSTREAM_STOCK_SETTINGS entries=35 checks=26 sliders=9 labels=ok pinned=ok clamp=ok toggle=ok' "$RUNNER_TEMP/stock-settings.log"
       - name: Verify the stock font rasterizer on the host
         run: |
           set -o pipefail
