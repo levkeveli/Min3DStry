@@ -18,6 +18,12 @@ typedef struct M3dsNet3dsContext {
 /* Initialize libctru SOC service on-demand and bind transport callbacks. */
 bool m3ds_net_3ds_init(M3dsNetTransport *transport, M3dsNet3dsContext *ctx);
 
+/* Send the stock Arc discovery query to the LAN broadcast and multicast endpoints. */
+bool m3ds_net_3ds_discover(M3dsNet3dsContext *ctx, uint16_t port, const char *group, uint16_t multicast_port);
+
+/* Receive an advertisement and its four IPv4 bytes, or return M3DS_NET_IO_TIMEOUT. */
+int m3ds_net_3ds_read_advertisement(M3dsNet3dsContext *ctx, uint8_t *packet, size_t capacity, uint8_t peer[4]);
+
 /* Shut down open sockets and libctru SOC service cleanly. */
 void m3ds_net_3ds_exit(M3dsNet3dsContext *ctx);
 
