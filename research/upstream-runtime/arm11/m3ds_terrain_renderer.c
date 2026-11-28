@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // Enable with sdmc:/3ds/min3dstry/frame-perf.txt. Log in windows to limit overhead.
@@ -42,6 +43,9 @@ typedef struct {
 } ArcAtlasRegion;
 
 #include "terrain_layout.h"
+#ifdef M3DS_CAMPAIGN_SKYBOX
+#include "m3ds_campaign_skybox.h"
+#endif
 #ifdef M3DS_CAMPAIGN_PLANETS
 #include "m3ds_planet_mesh.h"
 #endif
@@ -1034,13 +1038,11 @@ int32_t m3ds_terrain_campaign_planet_available(void) {
 }
 
 int32_t m3ds_terrain_draw_campaign_planet(int32_t planet, const float *matrix, const float *lighting,
-    const float *overlay, int32_t vertices, int32_t sector_vertices, const int32_t *surface, int32_t faces,
-    const int32_t *ids, const float *planes, const float *marker_matrix, int32_t markers) {
+    const float *overlay, int32_t vertices, int32_t sector_vertices, const int32_t *surface, int32_t faces) {
 #ifdef M3DS_CAMPAIGN_PLANETS
     if (!frame_open) return 0;
     C2D_Flush();
-    int32_t drawn = m3ds_planet_draw(planet, matrix, lighting, overlay, vertices, sector_vertices, surface, faces,
-        ids, planes, marker_matrix, markers);
+    int32_t drawn = m3ds_planet_draw(planet, matrix, lighting, overlay, vertices, sector_vertices, surface, faces);
     C2D_Prepare();
     begin_world_scene();
     return drawn;
@@ -1053,10 +1055,125 @@ int32_t m3ds_terrain_draw_campaign_planet(int32_t planet, const float *matrix, c
     (void)sector_vertices;
     (void)surface;
     (void)faces;
+    return 0;
+#endif
+}
+
+void m3ds_terrain_draw_campaign_markers(int32_t planet, const float *matrix,
+    const int32_t *ids, const float *planes, int32_t markers) {
+#ifdef M3DS_CAMPAIGN_PLANETS
+    if (!frame_open || markers <= 0) return;
+    C2D_Flush();
+    m3ds_planet_draw_sector_markers(planet, matrix, ids, planes, markers);
+    C2D_Prepare();
+    begin_world_scene();
+#else
+    (void)planet;
+    (void)matrix;
     (void)ids;
     (void)planes;
-    (void)marker_matrix;
     (void)markers;
+#endif
+}
+
+#ifdef M3DS_CAMPAIGN_SKYBOX
+enum { skybox_texture_width = 512, skybox_texture_height = 256 };
+static C3D_Tex skybox_texture;
+static float skybox_camera[7];
+static bool skybox_valid;
+static bool skybox_reported;
+
+static void release_campaign_skybox(void) {
+    if (skybox_texture.data) C3D_TexDelete(&skybox_texture);
+    memset(&skybox_texture, 0, sizeof(skybox_texture));
+    skybox_valid = false;
+    skybox_reported = false;
+}
+
+static bool update_campaign_skybox(const float *camera) {
+    uint8_t *rgb = malloc(M3DS_SKYBOX_WIDTH * M3DS_SKYBOX_HEIGHT * 3);
+    if (!rgb) return false;
+    bool ok = m3ds_skybox_render("romfs:/cubemaps/stars", camera, rgb);
+    if (ok && !skybox_texture.data) {
+        ok = C3D_TexInit(&skybox_texture, skybox_texture_width, skybox_texture_height, GPU_RGBA8);
+        if (ok) {
+            C3D_TexSetFilter(&skybox_texture, GPU_NEAREST, GPU_NEAREST);
+            C3D_TexSetWrap(&skybox_texture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+        }
+    }
+    if (ok) {
+        for (unsigned y = 0; y < M3DS_SKYBOX_HEIGHT; y++) {
+            for (unsigned x = 0; x < M3DS_SKYBOX_WIDTH; x++) {
+                const uint8_t *pixel = rgb + (y * M3DS_SKYBOX_WIDTH + x) * 3;
+                uint8_t *abgr = (uint8_t *)skybox_texture.data + raster_texel(x, y, skybox_texture_width) * 4;
+                abgr[0] = 255;
+                abgr[1] = pixel[2];
+                abgr[2] = pixel[1];
+                abgr[3] = pixel[0];
+            }
+        }
+        C3D_TexFlush(&skybox_texture);
+        memcpy(skybox_camera, camera, sizeof(skybox_camera));
+        skybox_valid = true;
+    }
+    free(rgb);
+    return ok;
+}
+#endif
+
+int32_t m3ds_terrain_draw_campaign_skybox(const float *camera) {
+#ifdef M3DS_CAMPAIGN_SKYBOX
+    if (!frame_open) return 0;
+    if ((!skybox_valid || memcmp(skybox_camera, camera, sizeof(skybox_camera)))
+            && !update_campaign_skybox(camera)) return 0;
+    static const Tex3DS_SubTexture bounds = {
+        .width = M3DS_SKYBOX_WIDTH, .height = M3DS_SKYBOX_HEIGHT,
+        .left = 0, .top = 1, .right = (float)M3DS_SKYBOX_WIDTH / skybox_texture_width,
+        .bottom = 1 - (float)M3DS_SKYBOX_HEIGHT / skybox_texture_height
+    };
+    bool ok = C2D_DrawImageAt((C2D_Image){&skybox_texture, &bounds}, 0, 0, 0, NULL, 1, 1);
+    if (ok && !skybox_reported) {
+        skybox_reported = true;
+        static const char record[] = "UPSTREAM_CAMPAIGN_SKYBOX_DRAW width=400 height=240\n";
+        svcOutputDebugString(record, sizeof(record) - 1);
+    }
+    return ok;
+#else
+    (void)camera;
+    return 0;
+#endif
+}
+
+int32_t m3ds_terrain_draw_campaign_atmosphere(int32_t planet, const float *matrix,
+    const float *camera, const float *parameters) {
+#ifdef M3DS_CAMPAIGN_PLANETS
+    if (!frame_open) return 0;
+    C2D_Flush();
+    int32_t drawn = m3ds_planet_draw_atmosphere(planet, matrix, camera, parameters);
+    C2D_Prepare();
+    begin_world_scene();
+    return drawn;
+#else
+    (void)planet;
+    (void)matrix;
+    (void)camera;
+    (void)parameters;
+    return 0;
+#endif
+}
+
+int32_t m3ds_terrain_draw_campaign_orbits(const float *matrix, const float *vertices, int32_t count) {
+#ifdef M3DS_CAMPAIGN_PLANETS
+    if (!frame_open) return 0;
+    C2D_Flush();
+    int32_t drawn = m3ds_planet_draw_orbits(matrix, vertices, count);
+    C2D_Prepare();
+    begin_world_scene();
+    return drawn;
+#else
+    (void)matrix;
+    (void)vertices;
+    (void)count;
     return 0;
 #endif
 }
@@ -1065,6 +1182,9 @@ void m3ds_terrain_release_campaign_planet(void) {
 #ifdef M3DS_CAMPAIGN_PLANETS
     if (gpu_ready && C3D_FrameBegin(C3D_FRAME_SYNCDRAW)) C3D_FrameEnd(0);
     m3ds_planet_release();
+#ifdef M3DS_CAMPAIGN_SKYBOX
+    release_campaign_skybox();
+#endif
 #endif
 }
 
@@ -1597,6 +1717,9 @@ void m3ds_terrain_fini(void) {
     if (gpu_ready && C3D_FrameBegin(0)) C3D_FrameEnd(0);
 #ifdef M3DS_CAMPAIGN_PLANETS
     m3ds_planet_release();
+#ifdef M3DS_CAMPAIGN_SKYBOX
+    release_campaign_skybox();
+#endif
 #endif
     if (minimap_ready) {
         C3D_TexDelete(&minimap_texture);

@@ -1,5 +1,7 @@
 #include "m3ds_planet_mesh.h"
 #include "m3ds_planet_shbin.h"
+#include "m3ds_atmosphere_shbin.h"
+#include "m3ds_planet_atmosphere.h"
 #ifdef M3DS_CAMPAIGN_PLANET_MARKERS
 #include "m3ds_planet_markers.h"
 #endif
@@ -12,43 +14,70 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { serpulo, erekir, planet_count, max_overlay_vertices = UINT16_MAX };
+enum {
+    serpulo, erekir, sun, gier, notva, verilus,
+    serpulo_cloud_0, serpulo_cloud_1, erekir_cloud_0, erekir_cloud_1,
+    atmosphere_mesh,
+    planet_count, max_overlay_vertices = UINT16_MAX
+};
 
 typedef struct {
     float position[3];
     float color[4];
 } PlanetVertex;
 
-static struct {
-    int planet;
+typedef struct {
     bool surface_applied;
     bool reported_markers;
     uint32_t stride, vertices, indices;
     float *stock;
     PlanetVertex *draw;
+    uint16_t *index;
+} PlanetFaces;
+
+static PlanetFaces bodies[planet_count];
+
+enum { atmosphere_width = 400, atmosphere_height = 240, texture_width = 512, texture_height = 256 };
+static struct {
+    C3D_Tex texture;
+    M3dsAtmosphereVertex *projected;
+    bool ready;
+    bool reported;
+    float camera[7];
+    float parameters[11];
+} atmospheres[2];
+static DVLB_s *atmosphere_shader;
+static shaderProgram_s atmosphere_program;
+static C3D_AttrInfo atmosphere_attributes;
+
+static struct {
     PlanetVertex *overlay;
     size_t overlay_capacity;
-    uint16_t *index;
     DVLB_s *shader;
     shaderProgram_s program;
     C3D_AttrInfo attributes;
     int projection;
-} mesh = {.planet = -1};
+} mesh;
 
-static void release_faces(void) {
-    free(mesh.stock);
-    if (mesh.draw) linearFree(mesh.draw);
-    if (mesh.index) linearFree(mesh.index);
-    mesh.stock = NULL;
-    mesh.draw = NULL;
-    mesh.index = NULL;
-    mesh.planet = -1;
-    mesh.surface_applied = false;
-    mesh.reported_markers = false;
+static void release_faces(PlanetFaces *faces) {
+    free(faces->stock);
+    if (faces->draw) linearFree(faces->draw);
+    if (faces->index) linearFree(faces->index);
+    *faces = (PlanetFaces){0};
 }
 
 void m3ds_planet_release(void) {
-    release_faces();
+    for (int planet = 0; planet < planet_count; planet++) release_faces(&bodies[planet]);
+    for (int i = 0; i < 2; i++) {
+        if (atmospheres[i].texture.data) C3D_TexDelete(&atmospheres[i].texture);
+        if (atmospheres[i].projected) linearFree(atmospheres[i].projected);
+    }
+    memset(atmospheres, 0, sizeof(atmospheres));
+    if (atmosphere_shader) {
+        shaderProgramFree(&atmosphere_program);
+        DVLB_Free(atmosphere_shader);
+        atmosphere_shader = NULL;
+    }
 #ifdef M3DS_CAMPAIGN_PLANET_MARKERS
     m3ds_planet_release_markers();
 #endif
@@ -62,12 +91,21 @@ void m3ds_planet_release(void) {
     }
 }
 
-static bool load_faces(int32_t planet) {
+static bool load_faces(PlanetFaces *faces, int32_t planet) {
     static const char *const assets[planet_count] = {
-        "romfs:/planet-meshes/serpulo.m3pm", "romfs:/planet-meshes/erekir.m3pm",
+        [serpulo] = "romfs:/planet-meshes/serpulo.m3pm",
+        [erekir] = "romfs:/planet-meshes/erekir.m3pm",
+        [sun] = "romfs:/planet-meshes/sun.m3pm",
+        [gier] = "romfs:/planet-meshes/gier.m3pm",
+        [notva] = "romfs:/planet-meshes/notva.m3pm",
+        [verilus] = "romfs:/planet-meshes/verilus.m3pm",
+        [serpulo_cloud_0] = "romfs:/planet-meshes/serpulo-cloud-0.m3pm",
+        [serpulo_cloud_1] = "romfs:/planet-meshes/serpulo-cloud-1.m3pm",
+        [erekir_cloud_0] = "romfs:/planet-meshes/erekir-cloud-0.m3pm",
+        [erekir_cloud_1] = "romfs:/planet-meshes/erekir-cloud-1.m3pm",
+        [atmosphere_mesh] = "romfs:/planet-meshes/atmosphere.m3pm",
     };
-    if (planet == mesh.planet) return true;
-    release_faces();
+    if (faces->stock) return true;
     FILE *file = fopen(assets[planet], "rb");
     if (!file) return false;
     uint32_t header[5];
@@ -77,38 +115,37 @@ static bool load_faces(int32_t planet) {
         && header[3] > 0 && header[3] <= UINT16_MAX
         && header[4] > 0 && header[4] <= 3 * UINT16_MAX && header[4] % 3 == 0;
     if (valid) {
-        mesh.stride = header[2];
-        mesh.vertices = header[3];
-        mesh.indices = header[4];
-        size_t words = (size_t)mesh.stride * mesh.vertices;
-        mesh.stock = malloc(words * sizeof(float));
-        mesh.draw = linearAlloc(mesh.vertices * sizeof(PlanetVertex));
-        mesh.index = linearAlloc(mesh.indices * sizeof(uint16_t));
-        valid = mesh.stock && mesh.draw && mesh.index
-            && fread(mesh.stock, sizeof(float), words, file) == words
-            && fread(mesh.index, sizeof(uint16_t), mesh.indices, file) == mesh.indices
+        faces->stride = header[2];
+        faces->vertices = header[3];
+        faces->indices = header[4];
+        size_t words = (size_t)faces->stride * faces->vertices;
+        faces->stock = malloc(words * sizeof(float));
+        faces->draw = linearAlloc(faces->vertices * sizeof(PlanetVertex));
+        faces->index = linearAlloc(faces->indices * sizeof(uint16_t));
+        valid = faces->stock && faces->draw && faces->index
+            && fread(faces->stock, sizeof(float), words, file) == words
+            && fread(faces->index, sizeof(uint16_t), faces->indices, file) == faces->indices
             && fgetc(file) == EOF && !ferror(file);
     }
     fclose(file);
-    for (uint32_t i = 0; valid && i < mesh.indices; i++) {
-        valid = mesh.index[i] < mesh.vertices;
+    for (uint32_t i = 0; valid && i < faces->indices; i++) {
+        valid = faces->index[i] < faces->vertices;
     }
     if (!valid) {
-        release_faces();
+        release_faces(faces);
         return false;
     }
-    GSPGPU_FlushDataCache(mesh.index, mesh.indices * sizeof(uint16_t));
-    mesh.planet = planet;
+    GSPGPU_FlushDataCache(faces->index, faces->indices * sizeof(uint16_t));
     char record[100];
     int size = snprintf(record, sizeof(record), "UPSTREAM_PLANET_MESH_DRAW planet=%d vertices=%lu indices=%lu",
-        (int)planet, (unsigned long)mesh.vertices, (unsigned long)mesh.indices);
+        (int)planet, (unsigned long)faces->vertices, (unsigned long)faces->indices);
     if (size > 0 && size < (int)sizeof(record)) svcOutputDebugString(record, size);
     return true;
 }
 
-static bool update_surface(const int32_t *surface, int32_t faces) {
-    if (faces == 0 || mesh.surface_applied) return true;
-    if (mesh.planet != serpulo || mesh.stride != 8 || !surface || faces < 0 || (uint32_t)faces > mesh.vertices / 5) {
+static bool update_surface(PlanetFaces *body, const int32_t *surface, int32_t faces) {
+    if (faces == 0 || body->surface_applied) return true;
+    if (body->stride != 8 || !surface || faces < 0 || (uint32_t)faces > body->vertices / 5) {
         return false;
     }
     uint32_t count = 0;
@@ -117,19 +154,19 @@ static bool update_surface(const int32_t *surface, int32_t faces) {
         if (size != 5 && size != 6) return false;
         count += size;
     }
-    if (count != mesh.vertices) return false;
+    if (count != body->vertices) return false;
 
-    float *vertex = mesh.stock;
+    float *vertex = body->stock;
     for (int32_t i = 0; i < faces; i++) {
         const int32_t *face = surface + i * 3;
-        for (int32_t j = 0; j < face[0]; j++, vertex += mesh.stride) {
+        for (int32_t j = 0; j < face[0]; j++, vertex += body->stride) {
             memcpy(vertex + 6, face + 1, 2 * sizeof(*face));
         }
     }
-    mesh.surface_applied = true;
+    body->surface_applied = true;
     char record[96];
     int size = snprintf(record, sizeof(record), "UPSTREAM_CAMPAIGN_SURFACE_DRAW faces=%ld vertices=%lu",
-        (long)faces, (unsigned long)mesh.vertices);
+        (long)faces, (unsigned long)body->vertices);
     if (size > 0 && size < (int)sizeof(record)) svcOutputDebugString(record, size);
     return true;
 }
@@ -155,10 +192,20 @@ static float color_channel(uint32_t color, unsigned channel) {
     return ((color >> (8 * channel)) & 255) / 255.0f;
 }
 
-static void shade_vertices(const float *light, const float *ambient, const float *eye) {
+static void shade_vertices(PlanetFaces *body, const float *light, const float *ambient, const float *eye, bool unlit) {
     // Translate the color calculation from Mindustry v160.8 planet.vert.
-    for (uint32_t i = 0; i < mesh.vertices; i++) {
-        const float *position = mesh.stock + i * mesh.stride;
+    for (uint32_t i = 0; i < body->vertices; i++) {
+        const float *position = body->stock + i * body->stride;
+        PlanetVertex *vertex = &body->draw[i];
+        memcpy(vertex->position, position, sizeof(vertex->position));
+        uint32_t surface, emission = 0;
+        memcpy(&surface, position + 6, sizeof(surface));
+        if (unlit) {
+            for (unsigned channel = 0; channel < 3; channel++) vertex->color[channel] = color_channel(surface, channel);
+            vertex->color[3] = 1;
+            continue;
+        }
+        if (body->stride == 8) memcpy(&emission, position + 7, sizeof(emission));
         const float *normal = position + 3;
         float eye_vector[3] = {eye[0] - position[0], eye[1] - position[1], eye[2] - position[2]};
         float nl = dot(normal, light);
@@ -166,18 +213,12 @@ static void shade_vertices(const float *light, const float *ambient, const float
         float reflection[3] = {normal[0] - 2 * nl * light[0],
             normal[1] - 2 * nl * light[1], normal[2] - 2 * nl * light[2]};
 
-        uint32_t surface, emission = 0;
-        memcpy(&surface, position + 6, sizeof(surface));
-        if (mesh.stride == 8) memcpy(&emission, position + 7, sizeof(emission));
-
         float highlight = fmaxf(dot(eye_vector, reflection) / sqrtf(dot(eye_vector, eye_vector)), 0);
         float specular = powf(highlight, 40) * (1 - color_channel(surface, 3));
         float diffuse = 0.01f + fminf(fmaxf((nl + 1) * 0.5f, 0), 1);
         float darkness = fmaxf((1 - (ambient[0] + specular) * diffuse) * 1.2f, 0);
         float emissive = color_channel(emission, 3) * fminf(darkness * darkness * darkness, 1.1f);
 
-        PlanetVertex *vertex = &mesh.draw[i];
-        memcpy(vertex->position, position, sizeof(vertex->position));
         for (unsigned channel = 0; channel < 3; channel++) {
             float base = color_channel(surface, channel);
             float color = base + (color_channel(emission, channel) - base) * emissive;
@@ -186,7 +227,24 @@ static void shade_vertices(const float *light, const float *ambient, const float
         }
         vertex->color[3] = 1;
     }
-    GSPGPU_FlushDataCache(mesh.draw, mesh.vertices * sizeof(PlanetVertex));
+    GSPGPU_FlushDataCache(body->draw, body->vertices * sizeof(PlanetVertex));
+}
+
+static void shade_cloud_vertices(PlanetFaces *body, const float *light, const float *ambient) {
+    // The overview has no focused planet, so stock HexSkyMesh supplies u_alpha = 1.
+    for (uint32_t i = 0; i < body->vertices; i++) {
+        const float *stock = body->stock + i * body->stride;
+        PlanetVertex *vertex = &body->draw[i];
+        memcpy(vertex->position, stock, sizeof(vertex->position));
+        uint32_t color;
+        memcpy(&color, stock + 6, sizeof(color));
+        float diffuse = 0.01f + fminf(fmaxf((dot(stock + 3, light) + 1) * 0.5f, 0), 1);
+        for (unsigned channel = 0; channel < 3; channel++) {
+            vertex->color[channel] = color_channel(color, channel) * ambient[channel] * diffuse;
+        }
+        vertex->color[3] = color_channel(color, 3);
+    }
+    GSPGPU_FlushDataCache(body->draw, body->vertices * sizeof(PlanetVertex));
 }
 
 static C3D_Mtx screen_projection(const float *matrix) {
@@ -200,12 +258,7 @@ static C3D_Mtx screen_projection(const float *matrix) {
     return projection;
 }
 
-int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *lighting,
-    const float *overlay, int32_t vertices, int32_t sector_vertices, const int32_t *surface, int32_t faces,
-    const int32_t *ids, const float *planes, const float *marker_matrix, int32_t markers) {
-    if (planet < 0 || planet >= planet_count || vertices < 0 || vertices > max_overlay_vertices
-        || sector_vertices < 0 || sector_vertices > vertices || sector_vertices % 3 != 0
-        || vertices % 3 != 0 || !load_faces(planet) || !load_shader() || !update_surface(surface, faces)) return 0;
+static bool reserve_overlay(int32_t vertices) {
     if ((size_t)vertices > mesh.overlay_capacity) {
         size_t capacity = mesh.overlay_capacity ? mesh.overlay_capacity * 2 : 4096;
         while (capacity < (size_t)vertices) capacity *= 2;
@@ -216,61 +269,213 @@ int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *light
             int size = snprintf(record, sizeof(record), "UPSTREAM_CAMPAIGN_OVERLAY_MEMORY vertices=%ld bytes=%lu free=%lu",
                 (long)vertices, (unsigned long)(capacity * sizeof(PlanetVertex)), (unsigned long)linearSpaceFree());
             if (size > 0 && size < (int)sizeof(record)) svcOutputDebugString(record, size);
-            return 0;
+            return false;
         }
         if (mesh.overlay) linearFree(mesh.overlay);
         mesh.overlay = buffer;
         mesh.overlay_capacity = capacity;
     }
-    shade_vertices(lighting, lighting + 3, lighting + 6);
+    return true;
+}
 
+static void bind_scene(const float *matrix) {
     C3D_Mtx projection = screen_projection(matrix);
-
-    C3D_BufInfo buffers;
-    BufInfo_Init(&buffers);
-    BufInfo_Add(&buffers, mesh.draw, sizeof(PlanetVertex), 2, 0x10);
     C3D_BindProgram(&mesh.program);
     C3D_SetAttrInfo(&mesh.attributes);
-    C3D_SetBufInfo(&buffers);
     C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, mesh.projection, &projection);
     C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
     for (int i = 0; i < 6; i++) C3D_TexEnvInit(C3D_GetTexEnv(i));
     C3D_TexEnvSrc(C3D_GetTexEnv(0), C3D_Both, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
     C3D_TexEnvFunc(C3D_GetTexEnv(0), C3D_Both, GPU_REPLACE);
-    C3D_DrawElements(GPU_TRIANGLES, (int)mesh.indices, C3D_UNSIGNED_SHORT, mesh.index);
-    if (vertices) {
-        size_t bytes = (size_t)vertices * sizeof(PlanetVertex);
-        memcpy(mesh.overlay, overlay, bytes);
-        GSPGPU_FlushDataCache(mesh.overlay, bytes);
-        BufInfo_Init(&buffers);
-        BufInfo_Add(&buffers, mesh.overlay, sizeof(PlanetVertex), 2, 0x10);
-        C3D_SetBufInfo(&buffers);
-        C3D_CullFace(GPU_CULL_BACK_CCW);
-        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
-        C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA,
-            GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
-        if (sector_vertices) C3D_DrawArrays(GPU_TRIANGLES, 0, sector_vertices);
-        C3D_CullFace(GPU_CULL_NONE);
-        if (sector_vertices < vertices) {
-            C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
-            C3D_DrawArrays(GPU_TRIANGLES, sector_vertices, vertices - sector_vertices);
+}
+
+static void bind_vertices(PlanetVertex *vertices) {
+    C3D_BufInfo buffers;
+    BufInfo_Init(&buffers);
+    BufInfo_Add(&buffers, vertices, sizeof(PlanetVertex), 2, 0x10);
+    C3D_SetBufInfo(&buffers);
+}
+
+static void draw_overlay(const float *overlay, int32_t vertices, int32_t sector_vertices) {
+    size_t bytes = (size_t)vertices * sizeof(PlanetVertex);
+    memcpy(mesh.overlay, overlay, bytes);
+    GSPGPU_FlushDataCache(mesh.overlay, bytes);
+    bind_vertices(mesh.overlay);
+    C3D_CullFace(GPU_CULL_BACK_CCW);
+    C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA,
+        GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+    if (sector_vertices) C3D_DrawArrays(GPU_TRIANGLES, 0, sector_vertices);
+    C3D_CullFace(GPU_CULL_NONE);
+    if (sector_vertices < vertices) {
+        C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
+        C3D_DrawArrays(GPU_TRIANGLES, sector_vertices, vertices - sector_vertices);
+    }
+}
+
+static bool load_atmosphere_shader(void) {
+    if (atmosphere_shader) return true;
+    atmosphere_shader = DVLB_ParseFile((u32 *)m3ds_atmosphere_shbin, m3ds_atmosphere_shbin_size);
+    if (!atmosphere_shader) return false;
+    shaderProgramInit(&atmosphere_program);
+    shaderProgramSetVsh(&atmosphere_program, &atmosphere_shader->DVLE[0]);
+    AttrInfo_Init(&atmosphere_attributes);
+    AttrInfo_AddLoader(&atmosphere_attributes, 0, GPU_FLOAT, 3);
+    AttrInfo_AddLoader(&atmosphere_attributes, 1, GPU_FLOAT, 2);
+    return true;
+}
+
+static unsigned atmosphere_texel(unsigned x, unsigned y) {
+    unsigned morton = 0;
+    for (unsigned bit = 0; bit < 3; bit++) {
+        morton |= ((x >> bit) & 1) << (2 * bit);
+        morton |= ((y >> bit) & 1) << (2 * bit + 1);
+    }
+    return ((y / 8) * (texture_width / 8) + x / 8) * 64 + morton;
+}
+
+static bool update_atmosphere_texture(int planet, const float *camera, const float *parameters) {
+    if (atmospheres[planet].ready && !memcmp(atmospheres[planet].camera, camera, sizeof(atmospheres[planet].camera))
+            && !memcmp(atmospheres[planet].parameters, parameters, sizeof(atmospheres[planet].parameters))) return true;
+    C3D_Tex *texture = &atmospheres[planet].texture;
+    if (!texture->data) {
+        if (!C3D_TexInit(texture, texture_width, texture_height, GPU_RGBA8)) return false;
+        C3D_TexSetFilter(texture, GPU_NEAREST, GPU_NEAREST);
+        C3D_TexSetWrap(texture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+    }
+    uint8_t *rgb = malloc(atmosphere_width * atmosphere_height * 3);
+    if (!rgb) return false;
+    M3dsAtmosphere atmosphere = {parameters[0], parameters[1], {parameters[2], parameters[3], parameters[4]},
+        {parameters[5], parameters[6], parameters[7]}};
+    M3dsAtmosphereVector eye = {parameters[8], parameters[9], parameters[10]};
+    // Arc Camera3D keeps direction and up normalized and orthogonal.
+    M3dsAtmosphereVector dx = {camera[1] * camera[5] - camera[2] * camera[4],
+        camera[2] * camera[3] - camera[0] * camera[5], camera[0] * camera[4] - camera[1] * camera[3]};
+    const float step = 2 * camera[6] / atmosphere_height;
+    dx = (M3dsAtmosphereVector){dx.x * step, dx.y * step, dx.z * step};
+    const M3dsAtmosphereVector dy = {-camera[3] * step, -camera[4] * step, -camera[5] * step};
+    const float x = -0.5f * (atmosphere_width - 1), y = -0.5f * (atmosphere_height - 1);
+    const M3dsAtmosphereVector first = {camera[0] + dx.x * x + dy.x * y,
+        camera[1] + dx.y * x + dy.y * y, camera[2] + dx.z * x + dy.z * y};
+    m3ds_atmosphere_raster(&atmosphere, eye, first, dx, dy, atmosphere_width, atmosphere_height, rgb);
+    for (unsigned row = 0; row < atmosphere_height; row++) {
+        for (unsigned col = 0; col < atmosphere_width; col++) {
+            const uint8_t *color = rgb + (row * atmosphere_width + col) * 3;
+            uint8_t *abgr = (uint8_t *)texture->data + atmosphere_texel(col, row) * 4;
+            abgr[0] = 255;
+            abgr[1] = color[2];
+            abgr[2] = color[1];
+            abgr[3] = color[0];
         }
     }
+    C3D_TexFlush(texture);
+    free(rgb);
+    memcpy(atmospheres[planet].camera, camera, sizeof(atmospheres[planet].camera));
+    memcpy(atmospheres[planet].parameters, parameters, sizeof(atmospheres[planet].parameters));
+    atmospheres[planet].ready = true;
+    return true;
+}
+
+int32_t m3ds_planet_draw_atmosphere(int32_t planet, const float *matrix,
+    const float *camera, const float *parameters) {
+    if (planet < serpulo || planet > erekir) return 0;
+    PlanetFaces *shell = &bodies[atmosphere_mesh];
+    if (!load_faces(shell, atmosphere_mesh) || !load_atmosphere_shader()) return 0;
+    if (!atmospheres[planet].projected) {
+        atmospheres[planet].projected = linearAlloc((size_t)shell->indices * 2 * sizeof(M3dsAtmosphereVertex));
+        if (!atmospheres[planet].projected) return 0;
+    }
+    M3dsAtmosphereVertex *projected = atmospheres[planet].projected;
+    unsigned count = 0;
+    for (unsigned i = 0; i < shell->indices; i += 3) {
+        M3dsAtmosphereVector triangle[3];
+        for (unsigned j = 0; j < 3; j++) {
+            const float *v = shell->stock + shell->index[i + j] * shell->stride;
+            triangle[j] = (M3dsAtmosphereVector){v[0], v[1], v[2]};
+        }
+        count += m3ds_atmosphere_project_triangle(triangle, matrix, (float)atmosphere_width / texture_width,
+            (float)atmosphere_height / texture_height, projected + count);
+    }
+    if (!count) return 1;
+    if (!update_atmosphere_texture(planet, camera, parameters)) return 0;
+    GSPGPU_FlushDataCache(projected, count * sizeof(*projected));
+    C3D_BindProgram(&atmosphere_program);
+    C3D_SetAttrInfo(&atmosphere_attributes);
+    C3D_BufInfo buffers;
+    BufInfo_Init(&buffers);
+    BufInfo_Add(&buffers, projected, sizeof(*projected), 2, 0x10);
+    C3D_SetBufInfo(&buffers);
+    C3D_TexBind(0, &atmospheres[planet].texture);
+    for (int i = 0; i < 6; i++) C3D_TexEnvInit(C3D_GetTexEnv(i));
+    C3D_TexEnvSrc(C3D_GetTexEnv(0), C3D_Both, GPU_TEXTURE0, GPU_TEXTURE0, GPU_TEXTURE0);
+    C3D_TexEnvFunc(C3D_GetTexEnv(0), C3D_Both, GPU_REPLACE);
+    C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_COLOR);
+    C3D_CullFace(GPU_CULL_BACK_CCW);
+    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE, GPU_SRC_ALPHA, GPU_ONE);
+    C3D_DrawArrays(GPU_TRIANGLES, 0, count);
+    C3D_CullFace(GPU_CULL_NONE);
+    if (!atmospheres[planet].reported) {
+        atmospheres[planet].reported = true;
+        char record[88];
+        int size = snprintf(record, sizeof(record), "UPSTREAM_CAMPAIGN_ATMOSPHERE_DRAW planet=%ld vertices=%u\n",
+            (long)planet, count);
+        if (size > 0 && size < (int)sizeof(record)) svcOutputDebugString(record, size);
+    }
+    return 1;
+}
+
+int32_t m3ds_planet_draw_orbits(const float *matrix, const float *overlay, int32_t vertices) {
+    if (vertices == 0) return 1;
+    if (vertices < 0 || vertices > max_overlay_vertices || vertices % 3 != 0
+        || !load_shader() || !reserve_overlay(vertices)) return 0;
+    bind_scene(matrix);
+    draw_overlay(overlay, vertices, 0);
+    return 1;
+}
+
+int32_t m3ds_planet_draw(int32_t planet, const float *matrix, const float *lighting,
+    const float *overlay, int32_t vertices, int32_t sector_vertices, const int32_t *surface, int32_t faces) {
+    if (planet < 0 || planet >= atmosphere_mesh || vertices < 0 || vertices > max_overlay_vertices
+        || sector_vertices < 0 || sector_vertices > vertices || sector_vertices % 3 != 0
+        || vertices % 3 != 0) return 0;
+    PlanetFaces *body = &bodies[planet];
+    if (!load_faces(body, planet) || !load_shader() || !update_surface(body, surface, faces)
+        || !reserve_overlay(vertices)) return 0;
+    bool cloud = planet >= serpulo_cloud_0;
+    if (cloud) shade_cloud_vertices(body, lighting, lighting + 3);
+    else shade_vertices(body, lighting, lighting + 3, lighting + 6, planet == sun);
+    bind_scene(matrix);
+    bind_vertices(body->draw);
+    if (cloud) {
+        C3D_CullFace(GPU_CULL_BACK_CCW);
+        C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA,
+            GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+    }
+    C3D_DrawElements(GPU_TRIANGLES, (int)body->indices, C3D_UNSIGNED_SHORT, body->index);
+    if (cloud) C3D_CullFace(GPU_CULL_NONE);
+    if (vertices) draw_overlay(overlay, vertices, sector_vertices);
+    return 1;
+}
+
+void m3ds_planet_draw_sector_markers(int32_t planet, const float *matrix,
+    const int32_t *ids, const float *planes, int32_t markers) {
 #ifdef M3DS_CAMPAIGN_PLANET_MARKERS
-    C3D_Mtx marker_projection = screen_projection(marker_matrix);
+    if (planet < serpulo || planet > erekir || markers <= 0) return;
+    PlanetFaces *body = &bodies[planet];
+    C3D_Mtx marker_projection = screen_projection(matrix);
     int32_t submitted = m3ds_planet_draw_markers(&marker_projection, ids, planes, markers);
-    if (submitted > 0 && !mesh.reported_markers) {
-        mesh.reported_markers = true;
+    if (submitted > 0 && !body->reported_markers) {
+        body->reported_markers = true;
         char record[96];
         int size = snprintf(record, sizeof(record), "UPSTREAM_CAMPAIGN_MARKERS_DRAW planet=%d markers=%ld",
             (int)planet, (long)submitted);
         if (size > 0 && size < (int)sizeof(record)) svcOutputDebugString(record, size);
     }
 #else
+    (void)planet;
+    (void)matrix;
     (void)ids;
     (void)planes;
-    (void)marker_matrix;
     (void)markers;
 #endif
-    return 1;
 }

@@ -33,12 +33,77 @@ produced these byte-identical results.
 | Serpulo | 43,740 | 87,468 | `86f8de68d03357c80e2e5d868798218ab8cf2863bf81e4e3f7ac51bb3f7d032e` |
 | Erekir | 14,580 | 29,148 | `fe8a1ef5e0a042f402261b27e967f2fac1d24190a6e1405bab4273f47220a892` |
 
+The solar-system work in [#721](https://github.com/levkeveli/Min3DStry/issues/721)
+exports the stock visible hierarchy rooted at the Sun. The same desktop JAR
+supplies the Sun and the Gier, Notva, and Verilus asteroid meshes. Asteroid
+parts retain the translations from stock `MatMesh`. The exporter joins their
+vertex and index buffers into one mesh per body. Tantros is hidden by the
+stock visibility rule. The Serpulo and Erekir mesh files and Serpulo surface
+sample file match the earlier exports byte for byte.
+
 The reference captures the stock surfaces at a fresh campaign state.
 The campaign selector opens the globe with X. The Circle Pad or D-pad
 orbits the globe, the bottom screen moves the cursor, the C-Stick changes
 zoom, and Y switches between Serpulo and Erekir. A previews a sector with the
 stock selection outline and confirms through its existing launch or resume
 path. B dismisses the preview or returns to the sector list.
+
+Press X from a globe to open the solar-system overview. The view uses
+the stock Universe positions and PlanetRenderer orbit geometry. Use Left
+and Right to choose a landable campaign planet or tap its position on the
+bottom-screen view coordinates. The C-Stick controls zoom, A opens the
+chosen globe, and B returns to the previous globe.
+
+Serpulo and Erekir use their two stock `HexSkyMesh` layers in the
+overview. The exporter stores each layer in the same `M3PM` format and
+writes its original rotation speed to a versioned `M3PC` manifest.
+Citro3D applies the pinned cloud shader's vertex lighting and alpha.
+The focused globe keeps the stock hidden-cloud rule for the selected
+planet at full sector-overlay opacity.
+
+The stock JVM reference checks the six visible bodies, two selectable
+planets, 742 orbit segments, touch selection by projected position and
+all four cloud speeds. The New 3DS replay checks the rendered Sun and
+cloud draw submissions, selects Erekir through the overview, and launches
+The Onset through the original sector route.
+
+The unified ROMFS stages all six original 1024×1024 campaign skybox PNGs
+from the checksum-verified v160.8 desktop archive. The face names and
+pixel data are preserved under `cubemaps/stars`, matching Arc's stock
+cubemap lookup. The campaign renderer uses the globe and overview
+camera orientation to sample the original pixels before drawing the
+planet meshes. It decodes one face at a time and reuses the 400×240
+image while orientation and field of view stay fixed. Host checks
+exercise both axes of all six faces, direction scaling, and edge
+clamping. The New 3DS replay requires a skybox draw submission and
+compares overview screenshot pixels with the pinned PNGs sampled
+through the stock Arc camera.
+
+The native atmosphere reference translates v160.8's
+`core/assets/shaders/atmosphere.frag` with the original three samples
+for both optical depth and in-scattering. The host test evaluates the
+real Serpulo and Erekir radii and colors on daylight, night, rim, and
+overview rays. The CPU raster produces the per-pixel additive RGB contribution.
+The mesh exporter stages the original `MeshBuilder.buildHex(Color.white, 2, 1.5f)`
+proxy with its 540 vertices and 1,068 indices. The projection clips the
+original triangles at the near plane before dividing by W, preserving
+the mesh depth and aligning the texture UVs to framebuffer pixels.
+Citro3D samples the scattering raster on the stock proxy and blends it
+additively against the planet depth buffer, with depth writes disabled.
+The focused globes and the overview use each world's stock atmosphere
+settings. The New 3DS replay requires submissions for Serpulo and Erekir.
+Held globe rotation uses frame time to maintain the normal 60 Hz turn rate.
+
+The [New 3DS Azahar replay at `65ed770`](https://github.com/levkeveli/Min3DStry/actions/runs/45757621698)
+held the D-pad across Serpulo sectors 170, 63, 179 and 16. The overview
+screenshot matched 14 of 16 pinned skybox samples. The replay captured
+both atmospheres, selected Erekir, rendered The Onset at 512×512, and
+saved the sector. Unmodified Java v160.8 reopened its save and settings.
+
+The [integrated New 3DS replay at `435c1af`](https://github.com/levkeveli/Min3DStry/actions/runs/46043573487/artifacts/15223044459)
+repeated the 14-of-16 skybox sample match and the Erekir launch and stock
+save readback. Its captures show the solar-system overview, the Erekir
+atmosphere, and the selected 512×512 Onset sector.
 
 The stock JVM reference confirms that the projected mesh centers and
 `Planet.getSector` agree for Ground Zero and The Onset. It also exercises

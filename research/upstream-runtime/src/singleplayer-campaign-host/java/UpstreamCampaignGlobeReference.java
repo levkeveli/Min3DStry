@@ -24,7 +24,10 @@ import mindustry.game.Saves;
 import mindustry.game.Team;
 import mindustry.game.Universe;
 import mindustry.graphics.Pal;
+import mindustry.graphics.g3d.GenericMesh;
+import mindustry.graphics.g3d.HexSkyMesh;
 import mindustry.graphics.g3d.MeshBuilder;
+import mindustry.graphics.g3d.MultiMesh;
 import mindustry.graphics.g3d.PlanetMesh;
 import mindustry.graphics.g3d.PlanetRenderer;
 import mindustry.net.Net;
@@ -81,8 +84,16 @@ public final class UpstreamCampaignGlobeReference {
 
         var globe = new UpstreamCampaignGlobe(Planets.serpulo.getStartSector());
         checkCenter(globe, Planets.serpulo.getStartSector());
-        for (int step = 0; step < 20; step++) globe.rotate(127, 0);
+        for (int step = 0; step < 20; step++) globe.rotate(127, 0, 1f);
+        var steppedGlobe = new UpstreamCampaignGlobe(Planets.serpulo.getStartSector());
+        for (int step = 0; step < 5; step++) steppedGlobe.rotate(127, 0, 4f);
+        steppedGlobe.update(200, 120);
         var numbered = globe.update(200, 120);
+        // Arc's lookup-table rotations can differ slightly when the increments are grouped.
+        if (globe.camera.direction.dst(steppedGlobe.camera.direction) > 0.0044f) {
+            throw new AssertionError("Held camera rotation differed: " + globe.camera.direction
+                + " versus " + steppedGlobe.camera.direction);
+        }
         if (numbered == null || numbered == Planets.serpulo.getStartSector()) {
             throw new AssertionError("Globe rotation did not move to another stock Serpulo sector");
         }
@@ -110,9 +121,81 @@ public final class UpstreamCampaignGlobeReference {
         checkTrade(serpuloStart, numbered, Pal.place);
         System.out.println("UPSTREAM_CAMPAIGN_ARC_REFERENCE launch=true shield=true invasion=true trade=true");
         checkMarkers();
-        if (args.length == 1) checkCampaignSurface(args[0]);
+        checkSolarSystem();
+        if (args.length == 1) {
+            checkCampaignSurface(args[0]);
+            checkCloudSpeeds(new Fi(args[0]).parent());
+        }
         System.out.println("UPSTREAM_CAMPAIGN_GLOBE_REFERENCE serpulo=" + Planets.serpulo.startSector
             + " rotated=" + numbered.id + " erekir=" + Planets.erekir.startSector + " zoom=true");
+    }
+
+    private static void checkCloudSpeeds(Fi assets) throws Exception {
+        var children = MultiMesh.class.getDeclaredField("meshes");
+        children.setAccessible(true);
+        for (var planet : new mindustry.type.Planet[]{Planets.serpulo, Planets.erekir}) {
+            var stock = planet.cloudMeshLoader.get();
+            try {
+                var layers = (GenericMesh[])children.get(stock);
+                var speeds = UpstreamCampaignSystem.readCloudSpeeds(assets.child(planet.name + ".m3pc"));
+                if (layers.length != speeds.length) throw new AssertionError("Stock cloud layer count changed");
+                for (int i = 0; i < layers.length; i++) {
+                    if (!(layers[i] instanceof HexSkyMesh cloud) || cloud.speed != speeds[i]) {
+                        throw new AssertionError("Stock cloud rotation changed for " + planet.name + " layer " + i);
+                    }
+                }
+            } finally {
+                stock.dispose();
+            }
+        }
+        var system = new UpstreamCampaignSystem(Planets.serpulo);
+        system.loadClouds(assets);
+        system.update();
+        var drawn = new arc.struct.IntSeq();
+        if (!system.drawBodies((asset, matrix, lighting) -> {
+            drawn.add(asset);
+            return true;
+        }, (asset, planet, camera) -> {
+            if (camera != system.camera || !planet.hasAtmosphere || planet.parent == null
+                || planet != (asset == 0 ? Planets.serpulo : Planets.erekir)) return false;
+            drawn.add(10 + asset);
+            return true;
+        }) || !drawn.equals(arc.struct.IntSeq.with(2, 1, 3, 4, 0, 5, 8, 9, 11, 6, 7, 10))) {
+            throw new AssertionError("Stock opaque, cloud or atmosphere draw order changed: " + drawn);
+        }
+        System.out.println("UPSTREAM_CAMPAIGN_CLOUD_REFERENCE planets=2 layers=4 stockSpeeds=ok");
+    }
+
+    private static void checkSolarSystem() {
+        var system = new UpstreamCampaignSystem(Planets.serpulo);
+        var expected = new mindustry.type.Planet[]{Planets.sun, Planets.erekir, Planets.gier, Planets.notva,
+            Planets.serpulo, Planets.verilus};
+        if (system.bodies.size != expected.length || system.selected() != Planets.serpulo
+                || system.selectable.size != 2) {
+            throw new AssertionError("Stock solar-system visibility or planet selection changed");
+        }
+        system.update();
+        var stockPosition = new Vec3();
+        for (int i = 0; i < expected.length; i++) {
+            var body = expected[i];
+            if (system.bodies.get(i) != body || !body.position.epsilonEquals(body.getWorldPosition(stockPosition), 0.0001f)
+                    || !system.camera.frustum.containsSphere(body.position, body.clipRadius)) {
+                throw new AssertionError("Stock body is misplaced or out of frame: " + body.name
+                    + " position=" + body.position + " reference=" + stockPosition + " camera=" + system.camera.position
+                    + " order=" + system.bodies.get(i).name + " radius=" + body.clipRadius);
+            }
+        }
+        system.updateOrbits();
+        int segments = (int)(Planets.erekir.orbitRadius * 10) + (int)(Planets.serpulo.orbitRadius * 10);
+        if (system.orbits.size != segments * 6 * UpstreamCampaignSectorOverlay.FLOATS_PER_VERTEX) {
+            throw new AssertionError("Orbit tessellation differs from the original line loops");
+        }
+        system.select(1);
+        if (system.selected() != Planets.erekir) throw new AssertionError("Could not switch to the stock Erekir globe");
+        var point = system.camera.project(stockPosition.set(Planets.serpulo.position), 0, 0, 400, 240);
+        system.pick(point.x, 240 - point.y);
+        if (system.selected() != Planets.serpulo) throw new AssertionError("Picking missed the original Serpulo position");
+        System.out.println("UPSTREAM_CAMPAIGN_SYSTEM_REFERENCE bodies=6 selectable=2 orbitSegments=" + segments);
     }
 
     private static void checkMarkers() {
@@ -325,7 +408,7 @@ public final class UpstreamCampaignGlobeReference {
                     }
                     samples++;
                 }
-                globe.rotate(127, step % 90 < 45 ? 64 : -64);
+                globe.rotate(127, step % 90 < 45 ? 64 : -64, 1f);
             }
         }
         if (samples == 0 || maximum >= 65536) {

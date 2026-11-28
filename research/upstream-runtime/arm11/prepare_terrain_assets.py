@@ -180,6 +180,17 @@ def pack_weather_noise(archive: zipfile.ZipFile, output: Path, scratch: Path, te
                         "--compress", "auto", "--output", str(output / f"{name}.t3x"), str(source)], check=True)
 
 
+def pack_campaign_skybox(desktop: zipfile.ZipFile, output: Path) -> None:
+    output.mkdir(parents=True)
+    # Arc Cubemap maps these to +X, -X, +Y, -Y, +Z, -Z respectively.
+    for face in ("right", "left", "top", "bottom", "front", "back"):
+        filename = f"{face}.png"
+        asset = desktop.read(f"cubemaps/stars/{filename}")
+        if asset[:8] != b"\x89PNG\r\n\x1a\n" or struct.unpack(">II", asset[16:24]) != (1024, 1024):
+            raise ValueError(f"Unexpected original star cubemap dimensions for {filename}")
+        (output / filename).write_bytes(asset)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--assets", type=Path, required=True)
@@ -254,6 +265,8 @@ def main() -> None:
                             str(CONVERTER.with_name("PackUpstreamLogicFont.java")), str(logic_font),
                             str(staged / "logic-font.dat")], check=True)
             if args.singleplayer:
+                with zipfile.ZipFile(args.desktop) as desktop:
+                    pack_campaign_skybox(desktop, staged / "cubemaps" / "stars")
                 subprocess.run([args.java, "-Dfile.encoding=UTF-8", "-cp", str(args.desktop.resolve()),
                                 str(CONVERTER.with_name("UpstreamCampaignPlanetMeshes.java")),
                                 str(staged / "planet-meshes")], check=True)

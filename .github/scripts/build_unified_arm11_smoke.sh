@@ -67,6 +67,7 @@ globe_reference="$RUNNER_TEMP/campaign-globe-reference"
 mkdir -p "$globe_reference"
 javac -cp "$RUNNER_TEMP/desktop.jar" -d "$globe_reference" \
   research/upstream-runtime/src/singleplayer/java/UpstreamCampaignGlobe.java \
+  research/upstream-runtime/src/singleplayer/java/UpstreamCampaignSystem.java \
   research/upstream-runtime/src/singleplayer/java/UpstreamCampaignSectorOverlay.java \
   research/upstream-runtime/src/singleplayer/java/UpstreamCampaignGrid.java \
   research/upstream-runtime/src/singleplayer/java/UpstreamCampaignArcs.java \
@@ -100,5 +101,9 @@ docker run --rm "${numa[@]}" -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
   -e M3DS_RELAX_POINTER_TYPES=1 "$M3DS_SMOKE_DEVKIT_IMAGE" \
   bash research/upstream-runtime/arm11/build.sh research/upstream-runtime/build/generated/teavm/c \
     build/smoke-arm11 --unified build/smoke-assets
+for face in right left top bottom front back; do
+  asset="cubemaps/stars/$face.png"
+  unzip -p "$RUNNER_TEMP/desktop.jar" "$asset" | cmp - "build/smoke-arm11/romfs/$asset"
+done
 cp build/smoke-arm11/upstream-probe.3dsx "$RUNNER_TEMP/server-release.jar" build/unified-smoke/
 unzip -p "$RUNNER_TEMP/assets.jar" assets/sprites/sprites.aatls > build/unified-smoke/sprites.aatls

@@ -171,6 +171,10 @@ if [[ $# -gt 0 ]]; then
         "$DEVKITPRO/tools/bin/bin2s" -a 4 -H "$output/nativeinclude/m3ds_planet_shbin.h" \
             "$output/m3ds_planet.shbin" > "$output/m3ds_planet_shader.s"
         terrain_sources+=("$root/m3ds_planet_mesh.c" "$output/m3ds_planet_shader.s")
+        "$DEVKITPRO/tools/bin/picasso" -o "$output/m3ds_atmosphere.shbin" "$root/m3ds_atmosphere.v.pica"
+        "$DEVKITPRO/tools/bin/bin2s" -a 4 -H "$output/nativeinclude/m3ds_atmosphere_shbin.h" \
+            "$output/m3ds_atmosphere.shbin" > "$output/m3ds_atmosphere_shader.s"
+        terrain_sources+=("$root/m3ds_planet_atmosphere.c" "$output/m3ds_atmosphere_shader.s")
         cp -R "$1/planet-meshes" "$output/romfs/planet-meshes"
         if [[ -d "$1/planet-icons" && -d "$1/world-atlas" ]]; then
             terrain_flags+=(-DM3DS_CAMPAIGN_PLANET_MARKERS)
@@ -180,6 +184,13 @@ if [[ $# -gt 0 ]]; then
     fi
     if [[ -d "$1/weather" ]]; then
         cp -R "$1/weather" "$output/romfs/weather"
+    fi
+    if [[ -d "$1/cubemaps/stars" && -d "$1/planet-meshes" ]]; then
+        portlibs="$DEVKITPRO/portlibs/3ds"
+        terrain_flags+=(-DM3DS_CAMPAIGN_SKYBOX -I"$portlibs/include" -L"$portlibs/lib")
+        terrain_sources+=("$root/m3ds_campaign_skybox.c" "$root/m3ds_campaign_skybox_image.c")
+        terrain_libraries+=(-lpng -lz)
+        cp -R "$1/cubemaps" "$output/romfs/cubemaps"
     fi
     "$DEVKITPRO/tools/bin/smdhtool" --create "$title" "$subtitle" \
         "Min3DStry Contributors" "$DEVKITPRO/libctru/default_icon.png" "$output/upstream-probe.smdh"

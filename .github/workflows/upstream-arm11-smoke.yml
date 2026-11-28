@@ -1452,7 +1452,8 @@ jobs:
         with:
           name: unified-arm11-smoke
           path: build/unified-smoke
-      - run: bash .github/scripts/setup_smoke_azahar.sh
+      - id: offline-emulator
+        run: bash .github/scripts/setup_smoke_azahar.sh
       - name: Ground Zero movement, mining, building, database and save/reload
         run: |
           for attempt in 1 2; do
@@ -1482,6 +1483,7 @@ jobs:
           xvfb-run -a python3 tools/verify_upstream_campaign_resume.py --truncated-primary --model new3ds \
             --rom "$rom" --server "$server" --fixtures "$fixtures" --output-dir build/offline-smoke/campaign-backup
       - name: Replay campaign lighting, both stock globes, and The Onset launch
+        if: ${{ !cancelled() && steps.offline-emulator.outcome == 'success' }}
         run: >-
           xvfb-run -a python3 tools/verify_upstream_campaign_globe.py
           --rom build/unified-smoke/upstream-probe.3dsx
