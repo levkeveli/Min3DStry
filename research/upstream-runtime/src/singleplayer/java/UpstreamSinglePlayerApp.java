@@ -56,6 +56,7 @@ import mindustry.world.blocks.defense.turrets.BaseTurret;
 import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
 import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
+import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.units.UnitFactory;
 
 /** Graphical offline single-player Mindustry v160.8 ARM11 entry point on Ground Zero. */
@@ -2033,7 +2034,8 @@ public final class UpstreamSinglePlayerApp {
             || UpstreamBuildingLayers.supportsExtractorDraw(block)
             || block instanceof BaseTurret
             || block == Blocks.overdriveProjector
-            || block == Blocks.overdriveDome || block == Blocks.shockwaveTower;
+            || block == Blocks.overdriveDome || block == Blocks.shockwaveTower
+            || build instanceof PayloadConveyorBuild conveyor && UpstreamBuildingLayers.supportsPayloadConveyorDraw(conveyor);
     }
 
     private void drawMenu(byte[] labels, int[] icons, int selected,

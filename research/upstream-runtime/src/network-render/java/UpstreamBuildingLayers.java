@@ -7,10 +7,13 @@ import arc.struct.ObjectSet;
 import arc.struct.Seq;
 import java.util.function.Predicate;
 import mindustry.Vars;
+import mindustry.content.Blocks;
 import mindustry.game.Team;
 import mindustry.gen.Building;
 import mindustry.gen.Groups;
 import mindustry.gen.Puddle;
+import mindustry.gen.Payloadc;
+import mindustry.gen.Unit;
 import mindustry.graphics.BuildingCacheLayer;
 import mindustry.graphics.CacheLayer;
 import mindustry.graphics.Layer;
@@ -21,6 +24,9 @@ import mindustry.world.blocks.defense.turrets.BaseTurret;
 import mindustry.world.blocks.heat.HeatConductor;
 import mindustry.world.meta.BuildVisibility;
 import mindustry.world.blocks.liquid.LiquidRouter;
+import mindustry.world.blocks.distribution.Conveyor.ConveyorBuild;
+import mindustry.world.blocks.payloads.BuildPayload;
+import mindustry.world.blocks.payloads.Constructor;
 import mindustry.world.blocks.payloads.PayloadConveyor.PayloadConveyorBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
 import mindustry.world.blocks.power.BeamNode.BeamNodeBuild;
@@ -61,6 +67,17 @@ final class UpstreamBuildingLayers {
         return block instanceof Drill || block instanceof BeamDrill || block instanceof WallCrafter;
     }
 
+    static boolean supportsPayloadConveyorDraw(PayloadConveyorBuild conveyor) {
+        if (!(conveyor.item instanceof BuildPayload payload)) {
+            return conveyor.item == null || conveyor.item instanceof UnitPayload;
+        }
+        var block = payload.block();
+        return ((Constructor)Blocks.constructor).filter.contains(block, true)
+            || block == Blocks.copperWall || block == Blocks.copperWallLarge
+            || block == Blocks.mechanicalDrill || payload.build instanceof ConveyorBuild
+            || payload.build instanceof PayloadConveyorBuild;
+    }
+
     void render(UpstreamTerrainDrawProbe.Viewport viewport, Team viewer, Predicate<Building> supported) {
         int right = Math.min(viewport.left + viewport.width(), Vars.world.width());
         int top = Math.min(viewport.bottom + viewport.height(), Vars.world.height());
@@ -80,6 +97,9 @@ final class UpstreamBuildingLayers {
                     // The live snapshot does not carry BeamNode's cached endpoints.
                     // Refresh them using the stock tile-change and link rules.
                     if (live && build instanceof BeamNodeBuild beam) beam.updateTile();
+                    if (build instanceof PayloadConveyorBuild conveyor && conveyor.item instanceof UnitPayload payload) {
+                        loadCarriedUnitGraphics(payload.unit);
+                    }
                     if (build instanceof UnitFactoryBuild factory) {
                         loadFactoryGraphics(factory.unit());
                         if (factory.getPayload() instanceof UnitPayload payload) {
@@ -185,6 +205,15 @@ final class UpstreamBuildingLayers {
             // Stock cell liquid places some of its geometry above the host building.
             puddle.draw();
             Draw.reset();
+        }
+    }
+
+    private void loadCarriedUnitGraphics(Unit unit) {
+        loadFactoryGraphics(unit.type());
+        while (unit instanceof Payloadc carrier && carrier.hasPayload()
+                && carrier.payloads().first() instanceof UnitPayload nested) {
+            unit = nested.unit;
+            loadFactoryGraphics(unit.type());
         }
     }
 

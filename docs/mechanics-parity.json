@@ -186,7 +186,7 @@
         "tools/verify_stock_assembler.py",
         "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
       ],
-      "notes": "Payload conveyor rendering is wired in the live client. The stock Tank Assembler completes a Vanquish after save/reload in the host simulation, with stock Java readback. Handheld assembler interaction and comprehensive payload, factory and reconstructor coverage remain open."
+      "notes": "New 3DS Azahar drew all seven stock Constructor payloads on reinforced conveyors from the unmodified Java server. The stock Tank Assembler completes a Vanquish after save/reload in the host simulation, with stock Java readback. Handheld assembler interaction and comprehensive payload, factory and reconstructor coverage remain open."
     },
     {
       "id": "touch-build-deconstruct",
