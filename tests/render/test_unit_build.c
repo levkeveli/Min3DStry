@@ -43,6 +43,33 @@ int main(void) {
                 == (fabsf(sinf(2 * b + phases[p])) <= 0.9f));
         }
     }
+    // The original reconstructor atlas spans three 128-texel patches in
+    // each direction. Keep the rotated quad and shader stripes continuous.
+    float edges[6];
+    const int count = m3ds_unit_build_edges(1.3f, edges);
+    const int icon_width = 338, icon_height = 374;
+    for (int stripe = 0; stripe + 1 < count; stripe++) {
+        float next = edges[stripe] * icon_width;
+        for (int column = 0; column < icon_width; column += M3DS_UNIT_BUILD_TEXTURE_LIMIT) {
+            const int remaining = icon_width - column;
+            const int patch = remaining < M3DS_UNIT_BUILD_TEXTURE_LIMIT ? remaining : M3DS_UNIT_BUILD_TEXTURE_LIMIT;
+            const M3dsUnitBuildRange clip = m3ds_unit_build_clip(edges[stripe], edges[stripe + 1],
+                icon_width, column, patch);
+            if (clip.first >= clip.end) continue;
+            assert(clip.first == next && clip.first >= column && clip.end <= column + patch);
+            const M3dsUnitBuildSlice slice = m3ds_unit_build_slice(169, 338,
+                clip.first / icon_width, clip.end / icon_width);
+            assert(fabsf((169 - slice.pivot_x) - clip.first) < 0.001f);
+            assert(fabsf(slice.width - (clip.end - clip.first)) < 0.001f);
+            next = clip.end;
+        }
+        assert(next == edges[stripe + 1] * icon_width);
+    }
+    const M3dsUnitBuildSlice upper = m3ds_unit_build_slice(187, 374, 0, 128.0f / icon_height);
+    const M3dsUnitBuildSlice lower = m3ds_unit_build_slice(187, 374, 128.0f / icon_height, 1);
+    assert(fabsf((upper.pivot_x - upper.width) - lower.pivot_x) < 0.001f);
+    assert(fabsf(upper.width + lower.width - icon_height) < 0.001f);
+
     assert(m3ds_unit_build_texel_offset(0, 0, 16) == 0);
     assert(m3ds_unit_build_texel_offset(7, 7, 16) == 252);
     assert(m3ds_unit_build_texel_offset(8, 0, 16) == 256);

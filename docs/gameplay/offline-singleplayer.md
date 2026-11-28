@@ -1108,3 +1108,26 @@ averaged about 233 ms per renderer frame, of which 213 ms was spent importing
 atlas fragments. A window panning from `117,49` to `109,49` imported 125
 fragments across 16 frames and averaged 159 ms per renderer frame. These are
 guest timings from the emulator with the same stock Ground Zero save.
+
+## Unit reconstructor upgrades
+
+Offline play runs the original v160.8 Reconstructor upgrades with stock
+unit payloads, power and item consumption. Both renderers draw the
+original input, reconstruction and cover layers. In multiplayer the
+port advances the animation clock while receiving production progress
+and payload identity from the stock server.
+
+The renderer splits larger construction sprites into patches within the
+existing four-slot scratch pool. Each patch keeps the original RGBA
+texels, global stripe phase and rotation. The JVM reference loads the
+original icons for all 34 upgrades. Icon dimensions reach 338 texels
+wide and 374 texels high. The native host checks cover stripe and rotation
+continuity across patch boundaries.
+
+Use the pinned runtime properties and `-Pprobe=unified
+runStockReconstructorJvm --args='<glacier.msav> <halfway.msav> <completed.msav>
+<bundle-base>'` to reproduce the original Additive Reconstructor fixture.
+The original tick loop advances a powered Dagger upgrade to 60 ticks,
+saves and reloads it, then produces a Mace and consumes the original
+items. `tools/verify_stock_reconstructor.py` reopens the halfway and
+completed saves in the unmodified Java v160.8 release.

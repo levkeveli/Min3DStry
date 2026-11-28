@@ -32,6 +32,7 @@ import mindustry.world.blocks.production.Pump;
 import mindustry.world.blocks.production.Separator;
 import mindustry.world.blocks.production.WallCrafter;
 import mindustry.world.blocks.storage.StorageBlock;
+import mindustry.world.blocks.units.Reconstructor.ReconstructorBuild;
 import mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild;
 import port.render.UpstreamBuildingLights;
 
@@ -83,6 +84,11 @@ final class UpstreamBuildingLayers {
                         if (factory.getPayload() instanceof UnitPayload payload) {
                             loadFactoryGraphics(payload.unit.type());
                         }
+                    }
+                    if (build instanceof ReconstructorBuild reconstructor
+                            && reconstructor.getPayload() instanceof UnitPayload payload) {
+                        loadFactoryGraphics(payload.unit.type());
+                        loadFactoryGraphics(reconstructor.upgrade(payload.unit.type()));
                     }
                 }
             }

@@ -56,6 +56,7 @@ import mindustry.world.blocks.defense.turrets.BaseTurret;
 import mindustry.world.blocks.logic.CanvasBlock.CanvasBuild;
 import mindustry.world.blocks.logic.LogicDisplay.LogicDisplayBuild;
 import mindustry.world.blocks.payloads.UnitPayload;
+import mindustry.world.blocks.units.Reconstructor;
 import mindustry.world.blocks.units.UnitFactory;
 
 /** Graphical offline single-player Mindustry v160.8 ARM11 entry point on Ground Zero. */
@@ -2000,7 +2001,7 @@ public final class UpstreamSinglePlayerApp {
         var block = build.block;
         return build instanceof CanvasBuild || build instanceof LogicDisplayBuild
             || UpstreamBuildingLayers.supportsPowerDraw(block) || UpstreamBuildingLayers.supportsDistributionDraw(block)
-            || block.category == Category.liquid || block instanceof UnitFactory
+            || block.category == Category.liquid || block instanceof UnitFactory || block instanceof Reconstructor
             || UpstreamBuildingLayers.supportsMaterialDraw(block) || block instanceof Wall
             || UpstreamBuildingLayers.supportsExtractorDraw(block)
             || block instanceof BaseTurret
