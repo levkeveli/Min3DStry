@@ -1709,10 +1709,23 @@ state comes from WorldIO, and the active and cooled states use
 `NetServer.syncBuilding` / `blockSnapshot`. The replay samples the same
 building in all three New 3DS screenshots.
 
-[Azahar evidence at `cd43f6e`](https://github.com/levkeveli/Min3DStry/actions/runs/45726096904/artifacts/15075732812)
+[Azahar evidence for stock snapshots](https://github.com/levkeveli/Min3DStry/actions/runs/45741951542/artifacts/15083107391)
 shows the smelter unlit at idle, lit after the server produced its first
 silicon, and unlit after the server removed its inputs and the warmup
 fell to zero. The server log records all three states.
+
+[Issue #703](https://github.com/levkeveli/Min3DStry/issues/703) runs the
+pinned power-graph and building groups in their original order on the
+handheld network client. The `--connected-sources` replay toggles the
+original item source blocks through stock configuration calls. This mode
+uses the original local building ticks to display the recipe and verifies
+the Java server's own output. It sends no manual smelter snapshots.
+Both New 3DS cases passed at `684e900`. The stock Java server recorded
+silicon production and both replays saw all 25 sampled flame pixels
+change while the smelter warmed up. The connected-source capture also
+shows the flame clear after the supply was removed.
+[Grouped run](https://github.com/levkeveli/Min3DStry/actions/runs/46047212681)
+· [Crafting and cooled screenshots](https://github.com/levkeveli/Min3DStry/actions/runs/46047212681/artifacts/15223967247)
 
 The building lighting pass calls upstream `Building.drawLight` for visible
 emitters when the map enables lighting. Stock radial requests flow through

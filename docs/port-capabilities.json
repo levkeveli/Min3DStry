@@ -244,7 +244,8 @@
         "research/upstream-runtime/host/UpstreamProductionBaseline.java",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "docs/porting/production-power-liquids.md",
-        "research/upstream-runtime/README.md"
+          "research/upstream-runtime/README.md",
+          "tools/verify_stock_live_crafting.py"
       ]
     },
     {

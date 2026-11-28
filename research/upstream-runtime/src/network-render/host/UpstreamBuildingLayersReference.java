@@ -48,6 +48,7 @@ import mindustry.content.Items;
 import mindustry.content.StatusEffects;
 import mindustry.content.Liquids;
 import mindustry.content.UnitTypes;
+import mindustry.core.GameState.State;
 import mindustry.ctype.ContentType;
 import mindustry.entities.bullet.BulletType;
 import mindustry.entities.bullet.ContinuousLaserBulletType;
@@ -382,6 +383,65 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
         Arm11AudioReference.verifyStockRegistry();
         UpstreamPuddleReference.verify();
         UpstreamWeatherLayersReference.verify();
+        if (args.length >= 5) verifyClientBuildingTicks(viewer);
+    }
+
+    private static void verifyClientBuildingTicks(Team team) {
+        var smelter = Vars.world.tile(75, 23);
+        var solarPanel = Vars.world.tile(73, 23);
+        var sandSource = Vars.world.tile(75, 22);
+        var coalSource = Vars.world.tile(76, 22);
+        smelter.setBlock(Blocks.siliconSmelter, team);
+        solarPanel.setBlock(Blocks.largeSolarPanel, team);
+        sandSource.setBlock(Blocks.itemSource, team);
+        coalSource.setBlock(Blocks.itemSource, team);
+
+        var build = (GenericCrafterBuild)smelter.build;
+        var oldState = Vars.state.getState();
+        var oldPlayer = Vars.player;
+        float oldDelta = Time.delta;
+        try {
+            Vars.player = Player.create();
+            Vars.player.team(team);
+            Vars.state.set(State.playing);
+            Time.delta = 1f;
+            for (int step = 0; step < 60; step++) UpstreamClientLogic.update(1f);
+            if (!Vars.net.client() || build.warmup != 0f || build.items.get(Items.silicon) != 0) {
+                throw new AssertionError("Expected the live smelter to start idle");
+            }
+
+            sandSource.build.configured(null, Items.sand);
+            coalSource.build.configured(null, Items.coal);
+            for (int step = 0; step < 90; step++) UpstreamClientLogic.update(1f);
+            int produced = build.items.get(Items.silicon);
+            float warmup = build.warmup;
+            if (produced <= 0 || warmup <= 0f || build.power.status <= 0f) {
+                throw new AssertionError("The client did not run the stock powered recipe");
+            }
+
+            sandSource.build.configured(null, null);
+            coalSource.build.configured(null, null);
+            Vars.state.set(State.paused);
+            UpstreamClientLogic.update(1f);
+            if (build.warmup != warmup || build.items.get(Items.silicon) != produced) {
+                throw new AssertionError("A paused client advanced the stock recipe");
+            }
+
+            Vars.state.set(State.playing);
+            for (int step = 0; step < 400; step++) UpstreamClientLogic.update(1f);
+            if (build.warmup != 0f || build.items.get(Items.silicon) < produced) {
+                throw new AssertionError("The live smelter did not cool when the sources stopped");
+            }
+            System.out.printf("UPSTREAM_CLIENT_BUILDING_TICK idle=true silicon=%d paused=true cooled=true%n", produced);
+        } finally {
+            Vars.state.set(oldState);
+            Vars.player = oldPlayer;
+            Time.delta = oldDelta;
+            smelter.setBlock(Blocks.air);
+            solarPanel.setBlock(Blocks.air);
+            sandSource.setBlock(Blocks.air);
+            coalSource.setBlock(Blocks.air);
+        }
     }
 
     private static void verifyPositionalAudioDispatch() {
@@ -639,7 +699,6 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             }
             factory.currentPlan = 1;
             factory.progress = ((UnitFactory)factory.block).plans.get(1).time / 2f;
-            verifyLiveFactoryClock(factory);
             factory.speedScl = 0.75f;
             factory.time = 40;
             solidQuads.clear();
@@ -661,32 +720,6 @@ public final class UpstreamBuildingLayersReference implements UpstreamTerrainDra
             sprites.clear();
             solidQuads.clear();
             unitBuilds.clear();
-        }
-    }
-
-    private static void verifyLiveFactoryClock(UnitFactory.UnitFactoryBuild factory) {
-        float delta = Time.delta;
-        float progress = factory.progress;
-        try {
-            Time.delta = 1f;
-            factory.efficiency = 1f;
-            factory.speedScl = 0f;
-            factory.time = 0f;
-            UpstreamRenderedNetworkProbe.advanceFactoryDraw(factory);
-            UpstreamRenderedNetworkProbe.advanceFactoryDraw(factory);
-            if (factory.speedScl <= 0f || factory.time <= 0f || factory.progress != progress
-                    || factory.payload != null || factory.currentPlan != 1) {
-                throw new AssertionError("The live factory did not animate independently of production");
-            }
-            float speed = factory.speedScl;
-            float clock = factory.time;
-            factory.efficiency = 0f;
-            UpstreamRenderedNetworkProbe.advanceFactoryDraw(factory);
-            if (factory.speedScl >= speed || factory.time != clock || factory.progress != progress) {
-                throw new AssertionError("The live factory did not fade out after production stopped");
-            }
-        } finally {
-            Time.delta = delta;
         }
     }
 

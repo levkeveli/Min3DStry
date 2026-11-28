@@ -131,9 +131,10 @@
         "docs/gameplay/offline-singleplayer.md",
         "research/upstream-runtime/src/gameplay/java/UpstreamProductionTickProbe.java",
         "research/upstream-runtime/src/gameplay/java/UpstreamCrafterRecipesProbe.java",
-        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java"
+        "research/upstream-runtime/src/network-render/java/UpstreamRenderedNetworkProbe.java",
+        "tools/verify_stock_live_crafting.py"
       ],
-      "notes": "The ARM11 production-ticks probe verifies upstream recipes. The offline and live draw passes use the full GenericCrafter and Separator families. Both Azahar profiles drew representative stock buildings offline and in the initial Java-server world. New 3DS Azahar replayed the idle, active and cooled Silicon Smelter visuals from stock Java server snapshots. A new host probe adds Graphite Press, Silicon Smelter, Separator and Kiln recipe coverage (UPSTREAM_CRAFTER_RECIPES graphitePress=4 siliconSmelter=9 separator=10 kiln=10 craftTime=stock). General live production simulation and more recipes remain open."
+      "notes": "The ARM11 production-ticks probe verifies upstream recipes. The offline and live draw passes use the full GenericCrafter and Separator families. The New 3DS Azahar Silicon Smelter replay verifies idle, active and cooled visuals both from stock Java server snapshots and from connected item sources without manual snapshots. The host recipe probe covers Graphite Press, Silicon Smelter, Separator and Kiln. Broader live recipe and production-chain coverage remains open."
     },
     {
       "id": "power-grid-generators",

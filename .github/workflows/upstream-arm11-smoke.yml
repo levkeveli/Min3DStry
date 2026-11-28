@@ -1537,6 +1537,13 @@ jobs:
           --server build/unified-smoke/server-release.jar
           --rom build/unified-smoke/upstream-probe.3dsx
           --azahar "$AZAHAR_BIN" --output build/live-crafting
+      - name: Stock silicon crafting through connected item sources
+        if: needs.changes.outputs.run_net == 'true'
+        run: >-
+          xvfb-run -a python3 tools/verify_stock_live_crafting.py
+          --server build/unified-smoke/server-release.jar
+          --rom build/unified-smoke/upstream-probe.3dsx
+          --azahar "$AZAHAR_BIN" --output build/live-crafting/connected-sources --connected-sources
       - name: Stock offline campaign audio
         if: needs.changes.outputs.run_audio == 'true'
         run: >-
