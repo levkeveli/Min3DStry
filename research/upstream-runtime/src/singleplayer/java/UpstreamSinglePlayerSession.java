@@ -1048,6 +1048,30 @@ public final class UpstreamSinglePlayerSession {
             System.out.println("UPSTREAM_SP_COMBAT wave=" + Vars.state.wave + " turret=duo ammo=" + turretAmmo
                 + " fired=" + fired + " advanced=" + advanceTiles + " enemy=dead");
 
+            // 9. In-app logistics: container -> unloader -> conveyor -> core in
+            // the session tick loop, proving the factory chain executes in-app.
+            int logisticsBefore = session.core().items.get(Items.copper);
+            Vars.world.tile(131, 55).setBlock(Blocks.conveyor, combatTeam, 2);
+            Vars.world.tile(132, 55).setBlock(Blocks.unloader, combatTeam, 2);
+            Vars.world.tile(133, 55).setBlock(Blocks.container, combatTeam, 0);
+            var container = Vars.world.tile(133, 55).build;
+            if (container == null) throw new IllegalStateException("The stock container did not build");
+            container.items.add(Items.copper, 40);
+            int deliveryTick = -1;
+            for (int tick = 1; tick <= 300; tick++) {
+                session.stepSimulation(0f, 0f);
+                if (session.core().items.get(Items.copper) > logisticsBefore) {
+                    deliveryTick = tick;
+                    break;
+                }
+            }
+            if (deliveryTick < 0) {
+                throw new IllegalStateException("The in-app logistics chain delivered no copper");
+            }
+            int delivered = session.core().items.get(Items.copper) - logisticsBefore;
+            System.out.println("UPSTREAM_SP_LOGISTICS chain=container>unloader>conveyor delivered="
+                + delivered + " tick=" + deliveryTick);
+
             System.out.println("UPSTREAM_SP_SIM_PASS world=256x256 mine=" + mineTicks + ":" + minedCopper
                 + " build=conveyor+wall deconstruct=air pause=" + pausedBefore
                 + " wave=2 enemies=" + preReloadEnemies + " copper=" + preReloadCopper

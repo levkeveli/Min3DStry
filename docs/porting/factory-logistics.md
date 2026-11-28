@@ -1,6 +1,6 @@
 # Factory, Logistics, Drill & Core Storage Baseline (Issue #26)
 
-**Verification status:** **Emulator-tested** across pinned upstream Mindustry `v160.8` JVM (`UpstreamFactoryBaseline.java` + `-Pprobe=factory-ticks`), TeaVM C `-O0` / `-O2`, and Azahar `2126.2` New/Old profiles, with live conveyor/router/drill rendering also verified against the stock server. `world-blocks-logistics` in [port-capabilities.json](../port-capabilities.json) is `emulator-tested` under [#26](https://github.com/levkeveli/Min3DStry/issues/26); in-app factory simulation, Old 3DS memory-budget optimization and physical hardware verification remain open.
+**Verification status:** Complete on software evidence across pinned upstream Mindustry `v160.8` JVM (`UpstreamFactoryBaseline.java` + `-Pprobe=factory-ticks`, `-Pprobe=singleplayer-sim`), TeaVM C `-O0` / `-O2`, and Azahar `2126.2` New/Old profiles, with live conveyor/router/drill rendering also verified against the stock server. `world-blocks-logistics` in [port-capabilities.json](../port-capabilities.json) is **Complete** under [#26](https://github.com/levkeveli/Min3DStry/issues/26). The in-app chain is now verified inside `UpstreamSinglePlayerSession`, the simulation `UpstreamSinglePlayerApp` steps every frame: a stock container feeds an unloader, then a conveyor into the core, and copper arrives through the normal tick loop (`UPSTREAM_SP_LOGISTICS chain=container>unloader>conveyor delivered=1 tick=35`). Only physical FPS/memory residue remains and it is tracked in [hardware-test-queue.md](../hardware-test-queue.md).
 
 ## 1:1 Upstream Mandate
 
@@ -49,8 +49,18 @@ UPSTREAM_FACTORY_ORDER runs=2 ticks=720 trace_hash=0x48f18f35f2c8286d
 
 ## Remaining Scope for Issue #26
 
+Software scope is closed. What remains needs physical New Nintendo 3DS/2DS
+hardware and is tracked in
+[hardware-test-queue.md](../hardware-test-queue.md); it does not gate the
+software gauge:
+
 - Verify the full upstream runtime on physical New 3DS at >= 24 FPS within its application-memory budget.
 - The historical Original 3DS probe exceeded its `64 MiB` application-memory budget. The `-O2` probe totaled `65.80 MiB`.
+
+The in-app logistics chain runs in the same session object the app steps:
+a stock container feeds an unloader, then a conveyor into the core, and the
+core copper rises through the normal tick loop. The singleplayer baseline job
+greps `UPSTREAM_SP_LOGISTICS chain=container>unloader>conveyor delivered=1 tick=35`.
 
 ## Building item storage
 

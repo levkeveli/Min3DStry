@@ -59,6 +59,9 @@ merge:
 - `combat-waves-ai`: physical New 3DS sustained >= 24 FPS under high combat load
   and the New 3DS ELF/heap footprint (software evidence: host JVM, TeaVM C
   `-O0`/`-O2`, Azahar New/Old, offline session turret/wave/AI marker).
+- `world-blocks-logistics`: physical New 3DS >= 24 FPS and app-memory footprint
+  for the full drill/conveyor/router runtime (software evidence: host JVM,
+  TeaVM C `-O0`/`-O2`, Azahar New/Old, offline session logistics marker).
 
 They remain `complete` in `docs/mechanics-parity.json`; a failing physical run
 reopens the corresponding entry.
