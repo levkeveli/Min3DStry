@@ -1406,8 +1406,8 @@ jobs:
             "-PupstreamCheckout=$RUNNER_TEMP/Mindustry" \
             "-PreferenceJar=$RUNNER_TEMP/server-release.jar" \
             "-ParcCheckout=$RUNNER_TEMP/Arc" -Pprobe=stock-settings runProbeJvm \
-            --args="$PWD/build/smoke-assets/bundles/bundle" | tee "$RUNNER_TEMP/stock-settings.log"
-          grep -Fx 'UPSTREAM_STOCK_SETTINGS entries=35 checks=26 sliders=9 labels=ok pinned=ok clamp=ok toggle=ok' "$RUNNER_TEMP/stock-settings.log"
+            --args="$PWD/build/smoke-assets/bundles/bundle $RUNNER_TEMP/Mindustry/core/src/mindustry/ui/dialogs/SettingsMenuDialog.java" | tee "$RUNNER_TEMP/stock-settings.log"
+          grep -Fx 'UPSTREAM_STOCK_SETTINGS entries=35 checks=26 sliders=9 labels=ok source=ok format=ok clamp=ok toggle=ok' "$RUNNER_TEMP/stock-settings.log"
       - name: Verify the stock font rasterizer on the host
         run: |
           set -o pipefail

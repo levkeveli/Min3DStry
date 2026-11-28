@@ -20,7 +20,7 @@ Java server from the title's Join Game route.
 
 ## Stock settings
 
-Settings (title or pause) lists the five handheld HUD toggles, then the stock
+Settings in the shared title/pause routes (the offline and unified runtimes use the same menu code) lists the five handheld HUD toggles, then the stock
 Game, Graphics and Sound categories. Each category is driven by
 `UpstreamStockSettings`, the mobile-applicable subset of
 `SettingsMenuDialog.addSettings()` at the pinned revision: checks toggle with A,
@@ -30,7 +30,7 @@ category list, keys and defaults are asserted on the host and the marker is
 grep-enforced in the smoke job:
 
 ```
-UPSTREAM_STOCK_SETTINGS entries=35 checks=26 sliders=9 labels=ok clamp=ok toggle=ok
+UPSTREAM_STOCK_SETTINGS entries=35 checks=26 sliders=9 labels=ok source=ok format=ok clamp=ok toggle=ok
 ```
 
 The [offline replay](https://github.com/levkeveli/Min3DStry/actions/runs/45727286685/artifacts/15076074292)

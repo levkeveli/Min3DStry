@@ -1982,67 +1982,6 @@ public final class UpstreamSinglePlayerApp {
         }
     }
 
-    private boolean chooseSoundSettings(Settings settings) {
-        String[] keys = {"musicvol", "sfxvol", "ambientvol"};
-        int[] volume = new int[keys.length];
-        for (int i = 0; i < keys.length; i++) volume[i] = Mathf.clamp(settings.getInt(keys[i], 100), 0, 100);
-        byte[] help = ("Left   -\0Right   +\0B   " + Core.bundle.get("back") + "\0")
-            .getBytes(StandardCharsets.UTF_8);
-        int selected = 0, lastY = 0, lastDirection = 0;
-        long repeatAt = 0;
-        boolean changed = false;
-        MenuRows rows = null;
-        UpstreamSinglePlayerInput.poll();
-        while (true) {
-            long started = System.nanoTime();
-            int input = UpstreamSinglePlayerInput.poll();
-            int touch = UpstreamTerrainRenderProbe.menuHelpAction(UpstreamSinglePlayerInput.touch(), 3);
-            if (input < 0 || touch == 2 || (input & UpstreamSinglePlayerInput.B_PRESSED) != 0) {
-                if (changed) settings.manualSave();
-                return input >= 0;
-            }
-            int y = (byte)(input >> 8);
-            if (y > 60 && lastY <= 20) {
-                selected = Math.floorMod(selected - 1, keys.length);
-                rows = null;
-            }
-            if (y < -60 && lastY >= -20) {
-                selected = (selected + 1) % keys.length;
-                rows = null;
-            }
-            lastY = y;
-            int x = (byte)input;
-            int direction = x < -60 ? -1 : x > 60 ? 1 : 0;
-            int delta = touch == 0 ? -1 : touch == 1 ? 1 : 0;
-            if (direction != lastDirection) {
-                repeatAt = started + 350_000_000L;
-                if (delta == 0) delta = direction;
-            } else if (direction != 0 && started >= repeatAt && delta == 0) {
-                delta = direction;
-                repeatAt = started + 65_000_000L;
-            }
-            lastDirection = direction;
-            int next = Mathf.clamp(volume[selected] + delta, 0, 100);
-            if (next != volume[selected]) {
-                volume[selected] = next;
-                settings.put(keys[selected], next);
-                changed = true;
-                rows = null;
-            }
-            if (rows == null) {
-                var captions = new String[keys.length + 1];
-                captions[0] = Core.bundle.get("settings.sound");
-                for (int i = 0; i < keys.length; i++) {
-                    captions[i + 1] = (i == selected ? "> " : "  ") + Core.bundle.get("setting." + keys[i] + ".name")
-                        + "  " + volume[i] + "%";
-                }
-                rows = encodeMenuRows(captions);
-            }
-            drawMenuRows(rows, help, 3);
-            while (System.nanoTime() < started + FRAME_NS) Thread.yield();
-        }
-    }
-
     private static String hudSettingRow(String label, boolean enabled) {
         return Core.bundle.get(label) + ": " + Core.bundle.get(enabled ? "on" : "off");
     }

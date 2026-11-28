@@ -1,20 +1,29 @@
 import arc.Core;
 import arc.Settings;
 import arc.files.Fi;
-import arc.struct.ObjectMap;
 import arc.util.I18NBundle;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * Checks the mobile-applicable stock settings table against the pinned bundle
- * and arc.Settings: every entry has a stock label, checks toggle and restore,
- * sliders hit both bounds through the stock step without leaving the range, and
- * the pinned SettingsMenuDialog defaults/ranges still match the table.
+ * Checks the mobile-applicable stock settings table against the pinned bundle,
+ * the pinned SettingsMenuDialog source and arc.Settings: every entry has a
+ * stock label and category header, the table's defaults/ranges match upstream,
+ * checks toggle and restore, sliders reach both bounds, and the stock value
+ * formatting produces text.
  */
 public final class UpstreamStockSettingsReference {
-    public static void main(String[] args) {
-        if (args.length < 1) {
-            throw new IllegalArgumentException("Expected the stock bundle base path, e.g. assets/bundles/bundle");
+    public static void main(String[] args) throws IOException {
+        if (args.length < 2) {
+            throw new IllegalArgumentException(
+                "Expected the stock bundle base and SettingsMenuDialog.java path");
         }
         Core.bundle = I18NBundle.createBundle(new Fi(args[0]), Locale.ROOT);
         var settings = new Settings() {
@@ -24,29 +33,16 @@ public final class UpstreamStockSettingsReference {
             }
         };
 
-        var expectedDefaults = ObjectMap.of(
-            "alwaysmusic", 0, "musicvol", 100, "sfxvol", 100, "ambientvol", 100,
-            "saveinterval", 60, "autotarget", 1, "communityservers", 1, "savecreate", 1,
-            "blockreplace", 1, "conveyorpathfinding", 1, "hints", 1, "doubletapmine", 0,
-            "commandmodehold", 1, "screenshake", 4, "chatopacity", 100, "lasersopacity", 100,
-            "unitlaseropacity", 100, "bridgeopacity", 100, "effects", 1, "atmosphere", 1,
-            "drawlight", 1, "destroyedblocks", 1, "blockstatus", 0, "playerchat", 1,
-            "coreitems", 1, "minimap", 1, "smoothcamera", 1, "position", 0, "fps", 0,
-            "playerindicators", 1, "showpings", 1, "showotherbuildplans", 1, "indicators", 1,
-            "showweather", 1, "animatedwater", 1
-        );
-        var expectedBounds = ObjectMap.of(
-            "musicvol", "0:100:1", "sfxvol", "0:100:1", "ambientvol", "0:100:1",
-            "saveinterval", "10:600:10", "screenshake", "0:8:1", "chatopacity", "0:100:5",
-            "lasersopacity", "0:100:5", "unitlaseropacity", "0:100:5", "bridgeopacity", "0:100:5"
-        );
+        Map<String, Integer> defaults = new LinkedHashMap<>();
+        Map<String, String> bounds = new LinkedHashMap<>();
+        parseUpstream(Path.of(args[1]), defaults, bounds);
 
         int entries = 0, checks = 0, sliders = 0;
         for (String category : UpstreamStockSettings.categories()) {
             var list = UpstreamStockSettings.entries(category);
             if (list.isEmpty()) throw new AssertionError("Stock category has no settings: " + category);
-            String categoryLabel = Core.bundle.get("settings." + category);
-            if (categoryLabel == null || categoryLabel.equals("settings." + category)) {
+            String header = Core.bundle.get("settings." + category);
+            if (header == null || header.equals("settings." + category) || header.startsWith("???")) {
                 throw new AssertionError("Missing stock category label: settings." + category);
             }
             for (var entry : list) {
@@ -55,7 +51,7 @@ public final class UpstreamStockSettingsReference {
                 if (label == null || label.isEmpty() || label.equals(entry.key())) {
                     throw new AssertionError("Missing stock label for setting." + entry.key() + ".name");
                 }
-                Integer pinnedDefault = (Integer)expectedDefaults.get(entry.key());
+                Integer pinnedDefault = defaults.get(entry.key());
                 if (pinnedDefault == null || pinnedDefault != entry.def()) {
                     throw new AssertionError("Default diverged from SettingsMenuDialog: " + entry.key()
                         + " table=" + entry.def() + " pinned=" + pinnedDefault);
@@ -71,30 +67,66 @@ public final class UpstreamStockSettingsReference {
                     }
                     checks++;
                 } else {
-                    String bounds = entry.min() + ":" + entry.max() + ":" + entry.step();
-                    if (!bounds.equals((String)expectedBounds.get(entry.key()))) {
+                    String range = entry.min() + ":" + entry.max() + ":" + entry.step();
+                    if (!range.equals(bounds.get(entry.key()))) {
                         throw new AssertionError("Range diverged from SettingsMenuDialog: " + entry.key()
-                            + " table=" + bounds + " pinned=" + expectedBounds.get(entry.key()));
+                            + " table=" + range + " pinned=" + bounds.get(entry.key()));
                     }
-                    int initial = settings.getInt(entry.key(), entry.def());
-                    if (initial != entry.def()) {
-                        throw new AssertionError("Stock slider default changed: " + entry.key());
-                    }
-                    UpstreamStockSettings.adjust(settings, entry, -1000);
+                    UpstreamStockSettings.adjust(settings, entry, -100000);
                     int low = UpstreamStockSettings.number(settings, entry);
-                    UpstreamStockSettings.adjust(settings, entry, 1000);
+                    UpstreamStockSettings.adjust(settings, entry, 100000);
                     int high = UpstreamStockSettings.number(settings, entry);
                     if (low != entry.min() || high != entry.max()) {
                         throw new AssertionError("Stock slider clamp changed: " + entry.key()
                             + " low=" + low + " high=" + high
                             + " expected=" + entry.min() + ".." + entry.max());
                     }
-                    settings.put(entry.key(), initial);
+                    settings.put(entry.key(), entry.def());
                     sliders++;
+                }
+                String display = UpstreamStockSettings.display(settings, entry);
+                String row = UpstreamStockSettings.row(settings, entry);
+                if (display == null || display.isEmpty() || row == null || !row.contains(display)) {
+                    throw new AssertionError("Stock value formatting failed: " + entry.key());
+                }
+                if (entry.format() == UpstreamStockSettings.Format.PERCENT && !display.endsWith("%")) {
+                    throw new AssertionError("Stock percent formatting changed: " + entry.key());
+                }
+                if (entry.format() == UpstreamStockSettings.Format.SHAKE && !display.endsWith("x")) {
+                    throw new AssertionError("Stock shake formatting changed: " + entry.key());
                 }
             }
         }
         System.out.println("UPSTREAM_STOCK_SETTINGS entries=" + entries + " checks=" + checks
-            + " sliders=" + sliders + " labels=ok pinned=ok clamp=ok toggle=ok");
+            + " sliders=" + sliders + " labels=ok source=ok format=ok clamp=ok toggle=ok");
+    }
+
+    /** Reads checkPref/sliderPref defaults and ranges from the pinned upstream dialog. */
+    private static void parseUpstream(Path source, Map<String, Integer> defaults,
+                                      Map<String, String> bounds) throws IOException {
+        Pattern check = Pattern.compile("checkPref\\(\"([A-Za-z0-9-]+)\", (true|false|!mobile|mobile)");
+        Pattern slider = Pattern.compile(
+            "sliderPref\\(\"([A-Za-z0-9-]+)\", ([0-9]+), ([0-9* ]+), ([0-9* ]+)(?:, ([0-9]+))?");
+        for (String line : Files.readAllLines(source, StandardCharsets.UTF_8)) {
+            Matcher c = check.matcher(line);
+            if (c.find()) {
+                defaults.put(c.group(1), "true".equals(c.group(2)) || "!mobile".equals(c.group(2)) ? 1 : 0);
+                continue;
+            }
+            Matcher s = slider.matcher(line);
+            if (s.find()) {
+                defaults.put(s.group(1), Integer.parseInt(s.group(2)));
+                int min = eval(s.group(3)), max = eval(s.group(4));
+                int step = s.group(5) == null ? 1 : Integer.parseInt(s.group(5));
+                bounds.put(s.group(1), min + ":" + max + ":" + step);
+            }
+        }
+    }
+
+    private static int eval(String value) {
+        String[] parts = value.split("\\*");
+        int result = 1;
+        for (String part : parts) result *= Integer.parseInt(part.trim());
+        return result;
     }
 }
