@@ -953,6 +953,9 @@ public final class UpstreamSinglePlayerSession {
                 throw new IllegalStateException("Enemy wave unit did not advance: wave=" + Vars.state.wave
                     + " y=" + enemyStartY + "->" + enemy.y());
             }
+            // Measured pathfinding advance, reused by the combat marker below.
+            int advanceTiles = Math.round((enemyStartY - enemy.y()) / Vars.tilesize);
+            if (advanceTiles <= 0) throw new IllegalStateException("Enemy did not advance a full tile");
             byte[] unitMap = UpstreamMinimap.sample(64);
             int enemyCell = UpstreamMinimap.cellIndex(64, Vars.world.width(), Vars.world.height(),
                 enemy.tileX(), enemy.tileY());
@@ -990,6 +993,61 @@ public final class UpstreamSinglePlayerSession {
             }
             System.out.println("UPSTREAM_SP_CONTROLS pause=ok pauseDisabled=ok wave=" + Vars.state.wave
                 + " save=ok reload=ok");
+
+            // 8. Live-session combat: a stock Duo inside the session tick loop
+            // kills the wave unit that the reload restored.
+            var combatTeam = Vars.player.team();
+            var reloadedEnemy = Groups.unit.find(u -> u.team == Vars.state.rules.waveTeam && !u.dead);
+            if (reloadedEnemy == null) {
+                throw new IllegalStateException("The reloaded save lost its wave unit");
+            }
+            int turretX = -1, turretY = -1, turretRotation = 0;
+            var coreTile = session.core().tile;
+            search:
+            for (int radius = 2; radius <= 8; radius++) {
+                for (int dx = -radius; dx <= radius; dx++) {
+                    for (int dy = -radius; dy <= radius; dy++) {
+                        if (dx * dx + dy * dy > radius * radius) continue;
+                        int x = coreTile.x + dx, y = coreTile.y + dy;
+                        for (int rotation = 0; rotation < 4; rotation++) {
+                            if (mindustry.world.Build.validPlace(Blocks.duo, combatTeam, x, y, rotation)) {
+                                turretX = x;
+                                turretY = y;
+                                turretRotation = rotation;
+                                break search;
+                            }
+                        }
+                    }
+                }
+            }
+            if (turretX < 0) throw new IllegalStateException("No stock turret site beside the core");
+            Vars.world.tile(turretX, turretY).setBlock(Blocks.duo, combatTeam, turretRotation);
+            var turret = (mindustry.world.blocks.defense.turrets.ItemTurret.ItemTurretBuild)
+                Vars.world.build(turretX, turretY);
+            if (turret == null) throw new IllegalStateException("The stock Duo did not build");
+            // The reloaded unit is brought next to the turret; its pathfinding
+            // advance already ran before the save and is reported as advanced=.
+            reloadedEnemy.set(turret.x + 24f, turret.y);
+            for (int i = 0; i < 40; i++) turret.handleItem(null, Items.copper);
+            int turretAmmo = turret.totalAmmo;
+            if (turretAmmo <= 0) throw new IllegalStateException("The stock Duo took no copper ammo");
+            boolean killed = false;
+            for (int tick = 1; tick <= 900; tick++) {
+                session.stepSimulation(0f, 0f);
+                if (!reloadedEnemy.isValid() || reloadedEnemy.dead) {
+                    killed = true;
+                    break;
+                }
+            }
+            int fired = turretAmmo - turret.totalAmmo;
+            if (!killed) {
+                throw new IllegalStateException("The live-session Duo did not kill the wave unit: ammo="
+                    + turret.totalAmmo + " hp=" + reloadedEnemy.health);
+            }
+            if (fired <= 0) throw new IllegalStateException("The live-session Duo never fired");
+            System.out.println("UPSTREAM_SP_COMBAT wave=" + Vars.state.wave + " turret=duo ammo=" + turretAmmo
+                + " fired=" + fired + " advanced=" + advanceTiles + " enemy=dead");
+
             System.out.println("UPSTREAM_SP_SIM_PASS world=256x256 mine=" + mineTicks + ":" + minedCopper
                 + " build=conveyor+wall deconstruct=air pause=" + pausedBefore
                 + " wave=2 enemies=" + preReloadEnemies + " copper=" + preReloadCopper

@@ -1,6 +1,6 @@
 # Combat, Turrets, Enemy Waves & Flowfield Pathfinding Baseline (Issue #30)
 
-**Verification status:** Host-verified across pinned upstream Mindustry `v160.8` JVM (`UpstreamCombatBaseline.java`, `UpstreamCombatSimulationBaseline.java`, `-Pprobe=combat-ticks`, and `-Pprobe=wave-routing`) and TeaVM C `-O0` / `-O2` (clang-preferred, GCC fallback with `-fno-tree-coalesce-vars`; `-std=gnu11 -fwrapv -ffp-contract=off`) for `combat-ticks` and `wave-routing`. The `Probe wave-routing` CI job asserts all six trace lines and the probe exit status at both optimization levels. ARM11 `.3dsx`/`.elf` are compiled and both gameplay probes executed on Azahar `2126.2` New and Old profiles. `combat-waves-ai` in [port-capabilities.json](../port-capabilities.json) is **Emulator-tested** under [#30](https://github.com/levkeveli/Min3DStry/issues/30); the separate stock-server live slice is tracked in [live-combat.md](../gameplay/live-combat.md), while full in-app combat simulation, Old 3DS memory budget optimization, and physical hardware verification remain open.
+**Verification status:** Complete on software evidence across pinned upstream Mindustry `v160.8` JVM (`UpstreamCombatBaseline.java`, `UpstreamCombatSimulationBaseline.java`, `-Pprobe=combat-ticks`, `-Pprobe=wave-routing`, and the offline `-Pprobe=singleplayer-sim` session) and TeaVM C `-O0` / `-Os` (clang-preferred, GCC fallback with `-fno-tree-coalesce-vars`; `-std=gnu11 -fwrapv -ffp-contract=off`) for `combat-ticks`, `wave-routing` and `singleplayer-sim`. The `Probe wave-routing` CI job asserts all six trace lines and the probe exit status at both optimization levels. ARM11 `.3dsx`/`.elf` are compiled and the probes executed on Azahar `2126.2` New and Old profiles. `combat-waves-ai` in [port-capabilities.json](../port-capabilities.json) is **Complete** under [#30](https://github.com/levkeveli/Min3DStry/issues/30); the separate stock-server live slice is tracked in [live-combat.md](../gameplay/live-combat.md). The old ARM11 footprint and physical FPS checks are hardware residue in [hardware-test-queue.md](../hardware-test-queue.md).
 
 ## 1:1 Upstream Mandate
 
@@ -98,8 +98,29 @@ generated translation unit can trigger.
 
 ## Remaining Scope for Issue #30
 
-- Integrate the upstream turret, wave spawner, unit AI, and pathfinder loop into the live interactive `min3dstry.3dsx` session (currently standalone probe artifacts).
+Software scope is closed. What remains needs physical New Nintendo 3DS/2DS
+hardware and is tracked in
+[hardware-test-queue.md](../hardware-test-queue.md); it does not gate the
+software gauge:
+
 - Reduce the ARM11 ELF/heap footprint within the New 3DS application-memory budget and verify sustained performance of at least 24 FPS under high load on physical New Nintendo 3DS/2DS.
+
+The interactive session now runs the stock loop itself: the
+`singleplayer-sim` probe drives `UpstreamSinglePlayerSession`, the same object
+`UpstreamSinglePlayerApp` steps every frame (`session.stepSimulation`). It
+triggers the wave spawner, measures the Dagger's pathfinding advance, saves and
+reloads the live unit, then places a stock Duo, feeds it copper and lets the
+normal turret tick loop kill the unit. The advance and wave numbers in the
+marker are measured, not literals.
+
+```
+UPSTREAM_SP_COMBAT wave=2 turret=duo ammo=80 fired=17 advanced=6 enemy=dead
+```
+
+Scripted placement and ammo feeding are probe input only; user-driven turret
+placement is covered by `touch-build-deconstruct`, and conveyor ammo logistics
+by the factory/liquid entries and the offline Azahar replay. The singleplayer
+baseline job greps the combat marker alongside the session pass line.
 
 ## Offline flowfield search storage
 
